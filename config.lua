@@ -1,6 +1,6 @@
 return {
     konfidenci = {
-        "uboxing00"
+        "uboxing005"
     },
     
     ustawienia = {
