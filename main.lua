@@ -113,26 +113,23 @@ local function dodajOznaczenia(gracz)
     billboard.Name = "TekstKonfidenta"
     billboard.AlwaysOnTop = true
     billboard.Size = UDim2.new(0, 220, 0, 40)
-    billboard.StudsOffset = Vector3.new(0, 5, 0)
+    billboard.StudsOffset = Vector3.new(0, 2.3, 0)
     billboard.Adornee = headPart
     billboard.Parent = headPart  -- BillboardGui musi być w Workspace (BasePart), nie w Players
 
     local textLabel = Instance.new("TextLabel")
     textLabel.Size = UDim2.new(1, 0, 1, 0)
-    textLabel.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-    textLabel.BackgroundTransparency = 0.45
+    textLabel.BackgroundTransparency = 1  -- brak tła
     textLabel.Text = ust.tekstNadGlowa or "KONFIDENT"
-    local kt = ust.kolorTekstu or {255, 255, 255}
-    textLabel.TextColor3 = Color3.fromRGB(kt[1], kt[2], kt[3])
+    -- kolor tekstu = taki sam jak podświetlenie (pomarańczowy)
+    local k2 = ust.kolorPodswietlenia or {255, 170, 0}
+    textLabel.TextColor3 = Color3.fromRGB(k2[1], k2[2], k2[3])
     textLabel.TextScaled = true
     textLabel.Font = Enum.Font.GothamBold
+    -- czarny stroke daje efekt "literka pomarańczowa, końcówki czarne"
     textLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
     textLabel.TextStrokeTransparency = 0.0
     textLabel.Parent = billboard
-
-    local labelCorner = Instance.new("UICorner")
-    labelCorner.CornerRadius = UDim.new(0, 4)
-    labelCorner.Parent = textLabel
 
     return true
 end
