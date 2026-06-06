@@ -103,21 +103,27 @@ local function dodajOznaczenia(gracz)
     local billboard = Instance.new("BillboardGui")
     billboard.Name = "TekstKonfidenta"
     billboard.AlwaysOnTop = true
-    billboard.Size = UDim2.new(0, 200, 0, 50)
-    billboard.StudsOffset = Vector3.new(0, 2.5, 0)
+    billboard.Size = UDim2.new(0, 220, 0, 40)
+    billboard.StudsOffset = Vector3.new(0, 5, 0)
     billboard.Adornee = headPart
     billboard.Parent = folder
 
     local textLabel = Instance.new("TextLabel")
     textLabel.Size = UDim2.new(1, 0, 1, 0)
-    textLabel.BackgroundTransparency = 1
+    textLabel.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    textLabel.BackgroundTransparency = 0.45
     textLabel.Text = ust.tekstNadGlowa or "KONFIDENT"
     local kt = ust.kolorTekstu or {255, 255, 255}
     textLabel.TextColor3 = Color3.fromRGB(kt[1], kt[2], kt[3])
     textLabel.TextScaled = true
     textLabel.Font = Enum.Font.GothamBold
-    textLabel.TextStrokeTransparency = 0.2
+    textLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+    textLabel.TextStrokeTransparency = 0.0
     textLabel.Parent = billboard
+
+    local labelCorner = Instance.new("UICorner")
+    labelCorner.CornerRadius = UDim.new(0, 4)
+    labelCorner.Parent = textLabel
 
     return true
 end
