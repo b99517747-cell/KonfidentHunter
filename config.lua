@@ -1,6 +1,6 @@
 return {
     konfidenci = {
-        10405234581
+        8566870104
     },
 
     ustawienia = {
