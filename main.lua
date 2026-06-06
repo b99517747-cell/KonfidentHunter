@@ -1,5 +1,5 @@
 local function pobierzKonfiguracje()
-    local url = "https://raw.githubusercontent.com/TWOJA_NAZWA_UZYTKOWNIKA/KonfidentHunter/main/config.lua"
+    local url = "https://github.com/b99517747-cell/KonfidentHunter/blob/715b1896ab32a0cb55731c2a59a95452c80b1f35/config.lua"
     local success, result = pcall(function()
         return loadstring(game:HttpGet(url))()
     end)
