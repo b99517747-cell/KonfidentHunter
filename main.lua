@@ -62,8 +62,17 @@ end
 local function usunOznaczenia(gracz)
     local folder = activeMarkers[gracz]
     if folder then
-        folder:Destroy()
+        pcall(function() folder:Destroy() end)
         activeMarkers[gracz] = nil
+    end
+    -- Usuń też BillboardGui z headPart na wypadek gdyby zostało
+    local char = gracz.Character
+    if char then
+        local head = char:FindFirstChild("Head") or char:FindFirstChild("HumanoidRootPart")
+        if head then
+            local bb = head:FindFirstChild("TekstKonfidenta")
+            if bb then pcall(function() bb:Destroy() end) end
+        end
     end
 end
 
@@ -83,7 +92,7 @@ local function dodajOznaczenia(gracz)
 
     local folder = Instance.new("Folder")
     folder.Name = "KonfidentMarkery"
-    folder.Parent = gracz
+    folder.Parent = character  -- musi być w Workspace żeby BillboardGui działał
     activeMarkers[gracz] = folder
 
     local ust = getUstawienia()
@@ -106,7 +115,7 @@ local function dodajOznaczenia(gracz)
     billboard.Size = UDim2.new(0, 220, 0, 40)
     billboard.StudsOffset = Vector3.new(0, 5, 0)
     billboard.Adornee = headPart
-    billboard.Parent = folder
+    billboard.Parent = headPart  -- BillboardGui musi być w Workspace (BasePart), nie w Players
 
     local textLabel = Instance.new("TextLabel")
     textLabel.Size = UDim2.new(1, 0, 1, 0)
