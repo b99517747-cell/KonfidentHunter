@@ -1,12 +1,4 @@
---[[
-    Konfident Hunter v2.0
-    Główny skrypt - nie edytuj tego pliku!
-    Aby zmienić konfigurację, edytuj plik config.lua
-]]
-
--- Funkcja do pobierania konfiguracji
 local function pobierzKonfiguracje()
-    -- Próba pobrania config.lua z tego samego repo
     local url = "https://raw.githubusercontent.com/TWOJA_NAZWA_UZYTKOWNIKA/KonfidentHunter/main/config.lua"
     local success, result = pcall(function()
         return loadstring(game:HttpGet(url))()
@@ -15,7 +7,6 @@ local function pobierzKonfiguracje()
     if success and result then
         return result
     else
-        -- DEFAULT CONFIG (gdyby nie dało się pobrać)
         return {
             konfidenci = {},
             ustawienia = {
@@ -32,13 +23,11 @@ local config = pobierzKonfiguracje()
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 
--- Przygotowanie listy konfidentów
 local czyKonfident = {}
 for _, nazwa in ipairs(config.konfidenci) do
     czyKonfident[nazwa:lower()] = true
 end
 
--- Funkcje pomocnicze
 local function czyJestKonfidentem(gracz)
     return czyKonfident[gracz.Name:lower()]
 end
@@ -47,7 +36,6 @@ local function czyGraczToJa(gracz)
     return gracz == LocalPlayer
 end
 
--- Dodawanie oznaczeń
 local function dodajOznaczenia(gracz)
     local postac = gracz.Character
     if not postac then return end
@@ -62,7 +50,6 @@ local function dodajOznaczenia(gracz)
         folder.Name = "KonfidentMarkery"
         folder.Parent = gracz
         
-        -- Podświetlenie
         local highlight = Instance.new("Highlight")
         highlight.Name = "Podswietlenie"
         highlight.FillColor = Color3.fromRGB(
@@ -75,7 +62,6 @@ local function dodajOznaczenia(gracz)
         highlight.Adornee = czescCiala
         highlight.Parent = folder
         
-        -- Tekst nad głową
         local billboard = Instance.new("BillboardGui")
         billboard.Name = "Tekst"
         billboard.AlwaysOnTop = true
@@ -123,7 +109,6 @@ local function monitorujGracza(gracz)
     gracz.CharacterRemoving:Connect(function() usunOznaczenia(gracz) end)
 end
 
--- Uruchomienie
 for _, gracz in ipairs(Players:GetPlayers()) do
     monitorujGracza(gracz)
 end
