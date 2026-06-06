@@ -73,10 +73,11 @@ local function dodajOznaczenia(gracz)
     local character = gracz.Character
     if not character then return false end
 
-    local adornee = character:FindFirstChild("HumanoidRootPart")
-                 or character:FindFirstChild("Head")
-                 or character:FindFirstChild("UpperTorso")
-    if not adornee then return false end
+    -- Highlight wymaga Model jako Adornee, tekst nad głową potrzebuje BasePart
+    local headPart = character:FindFirstChild("Head")
+                  or character:FindFirstChild("HumanoidRootPart")
+                  or character:FindFirstChild("UpperTorso")
+    if not headPart then return false end
 
     if activeMarkers[gracz] then usunOznaczenia(gracz) end
 
@@ -87,23 +88,24 @@ local function dodajOznaczenia(gracz)
 
     local ust = getUstawienia()
 
-    -- Highlight
+    -- Highlight – Adornee = cały Model (character), nie pojedyncza część!
     local highlight = Instance.new("Highlight")
     highlight.Name = "Podswietlenie"
     local k = ust.kolorPodswietlenia or {255, 170, 0}
     highlight.FillColor = Color3.fromRGB(k[1], k[2], k[3])
     highlight.FillTransparency = ust.przezroczystosc or 0.4
-    highlight.OutlineTransparency = 0.2
-    highlight.Adornee = adornee
+    highlight.OutlineColor = Color3.fromRGB(k[1], k[2], k[3])
+    highlight.OutlineTransparency = 0.0
+    highlight.Adornee = character  -- <-- MODEL, nie BasePart
     highlight.Parent = folder
 
-    -- Tekst nad głową
+    -- Tekst nad głową – Adornee = BasePart (Head)
     local billboard = Instance.new("BillboardGui")
     billboard.Name = "TekstKonfidenta"
     billboard.AlwaysOnTop = true
     billboard.Size = UDim2.new(0, 200, 0, 50)
     billboard.StudsOffset = Vector3.new(0, 2.5, 0)
-    billboard.Adornee = adornee
+    billboard.Adornee = headPart
     billboard.Parent = folder
 
     local textLabel = Instance.new("TextLabel")
@@ -172,7 +174,7 @@ local function odswiezListeRayfield()
         Title   = "Lista odświeżona",
         Content = "Konfidenci w bazie: " .. #listaNazw .. " | Online: " .. liczbaOnline,
         Duration = 4,
-        Image   = "rbxassetid://4483362458",
+        Image   = "shield-alert",
     })
 end
 
@@ -450,7 +452,7 @@ local function inicjuj()
         Title    = "Konfident Hunter",
         Content  = "Załadowano! Konfidenci w bazie: " .. liczba .. ". Naciśnij K, aby otworzyć menu.",
         Duration = 6,
-        Image    = "rbxassetid://4483362458",
+        Image    = "shield-alert",
     })
 
     -- Podłącz graczy
