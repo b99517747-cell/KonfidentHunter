@@ -1,12 +1,12 @@
 return {
     konfidenci = {
-        "uboxing005"
+        6432579
     },
-    
+
     ustawienia = {
         kolorPodswietlenia = {255, 170, 0},
-        przezroczystosc = 0.4,
-        tekstNadGlowa = "Konfident",
-        kolorTekstu = {255, 255, 255},
+        przezroczystosc    = 0.4,
+        tekstNadGlowa      = "Konfident",
+        kolorTekstu        = {255, 255, 255},
     }
 }
