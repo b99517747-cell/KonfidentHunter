@@ -1,7 +1,6 @@
 return {
     konfidenci = {
-        "bypassermanipulation",
-        "PrzykladowyNick2"
+        "uboxing005"
     },
     
     ustawienia = {
