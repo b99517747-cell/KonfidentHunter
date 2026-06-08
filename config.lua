@@ -1,6 +1,7 @@
 return {
     konfidenci = {
-        8566870104
+        8566870104,
+        430191287
     },
 
     ustawienia = {
