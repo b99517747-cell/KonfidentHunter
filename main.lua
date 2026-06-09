@@ -349,12 +349,9 @@ local function rebuildLista()
                 local gracz   = g
                 local isSpect = (spectateTarget == gracz)
                 local thumb   = thumbCache[gracz.UserId] or ""
-                -- Toggle: avatar jako Icon po lewej, nick jako Title, ID jako Desc
-                -- Switch po prawej = czy obserwujesz (spectate)
                 konfidenciSection:Toggle({
                     Title    = gracz.Name,
                     Desc     = "ID: " .. tostring(gracz.UserId),
-                    Icon     = thumb ~= "" and thumb or "user",
                     Value    = isSpect,
                     Callback = function(state)
                         if state then
@@ -366,13 +363,6 @@ local function rebuildLista()
                         lastListaHash = ""; rebuildLista()
                     end,
                 })
-                -- Załaduj thumb asynchronicznie jeśli jeszcze nie ma
-                if thumb == "" then
-                    task.spawn(function()
-                        local url = getThumb(gracz.UserId)
-                        if url ~= "" then lastListaHash = ""; rebuildLista() end
-                    end)
-                end
             end
         end
     end)
@@ -407,23 +397,14 @@ local function rebuildTeleport()
             for _, g in ipairs(filtered) do
                 local gracz = g
                 local thumb = thumbCache[gracz.UserId] or ""
-                -- Toggle: avatar jako Icon po lewej, nick jako Title, ID jako Desc
-                -- Kliknięcie przełącznika = teleport do gracza
                 teleportListSection:Toggle({
                     Title    = gracz.Name,
                     Desc     = "ID: " .. tostring(gracz.UserId),
-                    Icon     = thumb ~= "" and thumb or "user",
                     Value    = false,
                     Callback = function(state)
                         if state then teleportDo(gracz) end
                     end,
                 })
-                if thumb == "" then
-                    task.spawn(function()
-                        local url = getThumb(gracz.UserId)
-                        if url ~= "" then lastTeleportHash = ""; rebuildTeleport() end
-                    end)
-                end
             end
         end
     end)
