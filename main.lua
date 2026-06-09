@@ -349,18 +349,20 @@ local function rebuildLista()
                 local gracz   = g
                 local isSpect = (spectateTarget == gracz)
                 local thumb   = thumbCache[gracz.UserId] or ""
-                -- Button: avatar jako Icon po lewej, nick jako Title, ID jako Desc
-                -- Cały button klikalny = spectate/stop
-                konfidenciSection:Button({
-                    Title    = gracz.Name .. (isSpect and "  ▶ obserwujesz" or ""),
+                -- Toggle: avatar jako Icon po lewej, nick jako Title, ID jako Desc
+                -- Switch po prawej = czy obserwujesz (spectate)
+                konfidenciSection:Toggle({
+                    Title    = gracz.Name,
                     Desc     = "ID: " .. tostring(gracz.UserId),
                     Icon     = thumb ~= "" and thumb or "user",
-                    IconAlign = "Left",
-                    Justify  = "Between",
-                    Color    = isSpect and Color3.fromRGB(255,170,0) or nil,
-                    Callback = function()
-                        if spectateTarget == gracz then stopSpectate()
-                        else if spectateTarget then stopSpectate() end; spectateGracza(gracz) end
+                    Value    = isSpect,
+                    Callback = function(state)
+                        if state then
+                            if spectateTarget then stopSpectate() end
+                            spectateGracza(gracz)
+                        else
+                            stopSpectate()
+                        end
                         lastListaHash = ""; rebuildLista()
                     end,
                 })
@@ -405,13 +407,16 @@ local function rebuildTeleport()
             for _, g in ipairs(filtered) do
                 local gracz = g
                 local thumb = thumbCache[gracz.UserId] or ""
-                teleportListSection:Button({
+                -- Toggle: avatar jako Icon po lewej, nick jako Title, ID jako Desc
+                -- Kliknięcie przełącznika = teleport do gracza
+                teleportListSection:Toggle({
                     Title    = gracz.Name,
                     Desc     = "ID: " .. tostring(gracz.UserId),
                     Icon     = thumb ~= "" and thumb or "user",
-                    IconAlign = "Left",
-                    Justify  = "Between",
-                    Callback = function() teleportDo(gracz) end,
+                    Value    = false,
+                    Callback = function(state)
+                        if state then teleportDo(gracz) end
+                    end,
                 })
                 if thumb == "" then
                     task.spawn(function()
@@ -542,12 +547,10 @@ local StatSekcja = MainTab:Section({ Title = "Statystyki", Icon = "bar-chart-2",
 
 statBazaEl = StatSekcja:Paragraph({
     Title = "Kont w bazie konfidentów: 0",
-    Desc  = "Pobieranie...",
 })
 
 statSerwerEl = StatSekcja:Paragraph({
     Title = "Konfidentów na tym serwerze: 0",
-    Desc  = "Pobieranie...",
 })
 
 StatSekcja:Space()
