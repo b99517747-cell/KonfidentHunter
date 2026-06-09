@@ -106,7 +106,7 @@ local function stworzAlertGui()
     alertGui = gui
 end
 
-local AW, AH, AM, AB = 300, 68, 20, 80
+local AW, AH, AM, AB = 320, 80, 20, 160
 
 local function pokazAlert(tytul, tresc, kolor)
     kolor = kolor or Color3.fromRGB(255,170,0)
@@ -123,7 +123,7 @@ local function pokazAlert(tytul, tresc, kolor)
     st.Color = Color3.fromRGB(55,55,65); st.Thickness = 1
     st.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
     local ib = Instance.new("Frame",f)
-    ib.Size = UDim2.new(0,36,0,36); ib.Position = UDim2.new(0,14,0.5,-18)
+    ib.Size = UDim2.new(0,40,0,40); ib.Position = UDim2.new(0,14,0.5,-20)
     ib.BackgroundColor3 = Color3.fromRGB(
         math.clamp(math.floor(kolor.R*255*0.18),0,255),
         math.clamp(math.floor(kolor.G*255*0.18),0,255),
@@ -132,20 +132,20 @@ local function pokazAlert(tytul, tresc, kolor)
     Instance.new("UICorner",ib).CornerRadius = UDim.new(1,0)
     local il = Instance.new("TextLabel",ib)
     il.Size = UDim2.new(1,0,1,0); il.BackgroundTransparency = 1
-    il.Text = "!"; il.TextSize = 16; il.Font = Enum.Font.GothamBold
+    il.Text = "!"; il.TextSize = 20; il.Font = Enum.Font.GothamBold
     il.TextColor3 = kolor; il.TextXAlignment = Enum.TextXAlignment.Center
     il.TextYAlignment = Enum.TextYAlignment.Center; il.ZIndex = 12
     local tl = Instance.new("TextLabel",f)
-    tl.Size = UDim2.new(1,-62,0,18); tl.Position = UDim2.new(0,58,0,13)
+    tl.Size = UDim2.new(1,-68,0,22); tl.Position = UDim2.new(0,64,0,14)
     tl.BackgroundTransparency = 1; tl.Text = tytul
     tl.TextColor3 = Color3.fromRGB(235,235,235); tl.Font = Enum.Font.GothamBold
-    tl.TextSize = 12; tl.TextXAlignment = Enum.TextXAlignment.Left
+    tl.TextSize = 15; tl.TextXAlignment = Enum.TextXAlignment.Left
     tl.TextTruncate = Enum.TextTruncate.AtEnd; tl.ZIndex = 11
     local cl = Instance.new("TextLabel",f)
-    cl.Size = UDim2.new(1,-62,0,26); cl.Position = UDim2.new(0,58,0,31)
+    cl.Size = UDim2.new(1,-68,0,30); cl.Position = UDim2.new(0,64,0,36)
     cl.BackgroundTransparency = 1; cl.Text = tresc
     cl.TextColor3 = Color3.fromRGB(155,155,170); cl.Font = Enum.Font.Gotham
-    cl.TextSize = 10; cl.TextXAlignment = Enum.TextXAlignment.Left
+    cl.TextSize = 13; cl.TextXAlignment = Enum.TextXAlignment.Left
     cl.TextWrapped = true; cl.ZIndex = 11
     local pb = Instance.new("Frame",f)
     pb.Size = UDim2.new(1,0,0,2); pb.Position = UDim2.new(0,0,1,-2)
@@ -721,14 +721,6 @@ local function inicjuj()
         scheduleRebuild()
 
         -- Powiadomienia z opóźnieniami
-        task.delay(1.2, function()
-            WindUI:Notify({
-                Title    = "KonfidentHunter",
-                Content  = ("Baza: %d kont | Klawisz: %s"):format(bazaLiczba, currentKeybind),
-                Icon     = "shield-alert",
-                Duration = 5,
-            })
-        end)
         task.delay(2.8, function()
             local naS = #konfidenciNaSerwerzeLista()
             if naS > 0 then
