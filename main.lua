@@ -483,12 +483,7 @@ MainTab = Window:Tab({ Title = "Main", Icon = "info" })
 MainTab:Select()
 
 -- LOGO / BANNER
-MainTab:Image({
-    Image       = "https://raw.githubusercontent.com/b99517747-cell/KonfidentHunter/main/banner.png",
-    AspectRatio = "16:9",
-    Radius      = 12,
-})
-MainTab:Space()
+-- MainTab:Image wyłączone — bug WindUI 1.6.64 z Top na ImageLabel
 
 -- SEKCJA: Statystyki (tworzona raz, nigdy nie niszczona)
 local StatSekcja = MainTab:Section({ Title = "Statystyki", Icon = "chart-no-axes-combined", Opened = true })
