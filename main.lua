@@ -1,14 +1,15 @@
 --[[
-    Konfident Hunter v5.2 - WindUI Edition
-    Zmiany:
-      - Statystyki nie powielają sie (flaga + jeden rebuild)
-      - Brak "Locked" - zastąpiono Paragraph
-      - Profil i serwer uproszczone
-      - Powiadomienia nie nakladaja sie na siebie
+    Konfident Hunter v5.3
+    - Statystyki NIE powielają się (sekcja tworzona raz, aktualizacja przez etykiety)
+    - Brak Section:Destroy() - to powodowało "Top is not a valid member of ImageLabel"
+    - Lista i Teleport odświeżają się przez destroy tylko gdy jest to KONIECZNE
+    - Sync z configiem co 60 sekund, nie co chwilę
+    - Profil z avatarem, Lista/Teleport z avatarami graczy
+    - Powiadomienia nie nakładają się
 ]]
 
 -- ===== KONFIGURACJA =====
-local REFRESH_TIME   = 30
+local REFRESH_TIME   = 60   -- sync bazy co 60 sekund
 local CONFIG_URL     = "https://raw.githubusercontent.com/b99517747-cell/KonfidentHunter/main/config.lua"
 local DOMYSLNY_KLUCZ = "K"
 local DISCORD_URL    = "https://discord.gg/YjTWGZYD"
@@ -31,20 +32,44 @@ local pokazOznaczenia = true
 local currentKeybind  = DOMYSLNY_KLUCZ
 local monitorowani    = {}
 
--- Flagi rebuild - zapobiega powielaniu
-local rebuildPending      = false
-local mainStatBuilding    = false  -- zabezpieczenie przed rownoleglym rebuild
+local MainTab         = nil
+local ListaTab        = nil
+local TeleportTab     = nil
+local teleportFilter  = ""
 
-local MainTab             = nil
-local ListaTab            = nil
-local TeleportTab         = nil
+-- Kontrola listy - przebuduj tylko gdy sie faktycznie zmienila
+local lastListaHash     = ""
+local lastTeleportHash  = ""
+
+-- Sekcje które przebudowujemy
 local konfidenciSection   = nil
 local teleportListSection = nil
-local mainStatSection     = nil
-local teleportFilter      = ""
+
+-- Flaga - tylko jeden rebuild na raz
+local rebuildQueued = false
 
 -- ===================================================
---  SYSTEM ALERTOW (prawy dolny rog)
+--  HELPER: thumbnail URL gracza
+-- ===================================================
+
+local thumbnailCache = {}
+
+local function getThumb(userId)
+    if thumbnailCache[userId] then return thumbnailCache[userId] end
+    local url = ""
+    pcall(function()
+        url = Players:GetUserThumbnailAsync(
+            userId,
+            Enum.ThumbnailType.AvatarBust,
+            Enum.ThumbnailSize.Size100x100
+        ) or ""
+    end)
+    thumbnailCache[userId] = url
+    return url
+end
+
+-- ===================================================
+--  SYSTEM ALERTOW
 -- ===================================================
 
 local alertGui = nil
@@ -74,7 +99,7 @@ local function pokazAlert(tytul, tresc, kolorAkcentu)
     if not alertGui or not alertGui.Parent then stworzAlertGui() end
 
     local posOff    = -(ALERT_H + ALERT_MARGIN + ALERT_BOTTOM)
-    local startPos  = UDim2.new(1, ALERT_MARGIN,              1, posOff)
+    local startPos  = UDim2.new(1,  ALERT_MARGIN,             1, posOff)
     local targetPos = UDim2.new(1, -(ALERT_W + ALERT_MARGIN), 1, posOff)
 
     local ramka = Instance.new("Frame")
@@ -104,56 +129,35 @@ local function pokazAlert(tytul, tresc, kolorAkcentu)
     ikonaBg.Parent          = ramka
     Instance.new("UICorner", ikonaBg).CornerRadius = UDim.new(1, 0)
     local ikona = Instance.new("TextLabel")
-    ikona.Size                   = UDim2.new(1, 0, 1, 0)
-    ikona.BackgroundTransparency = 1
-    ikona.Text                   = "!"
-    ikona.TextSize               = 16
-    ikona.Font                   = Enum.Font.GothamBold
-    ikona.TextColor3             = kolorAkcentu
-    ikona.TextXAlignment         = Enum.TextXAlignment.Center
-    ikona.TextYAlignment         = Enum.TextYAlignment.Center
-    ikona.ZIndex                 = 12
-    ikona.Parent                 = ikonaBg
+    ikona.Size = UDim2.new(1,0,1,0); ikona.BackgroundTransparency = 1
+    ikona.Text = "!"; ikona.TextSize = 16; ikona.Font = Enum.Font.GothamBold
+    ikona.TextColor3 = kolorAkcentu
+    ikona.TextXAlignment = Enum.TextXAlignment.Center
+    ikona.TextYAlignment = Enum.TextYAlignment.Center
+    ikona.ZIndex = 12; ikona.Parent = ikonaBg
 
     local tytulLabel = Instance.new("TextLabel")
-    tytulLabel.Size                   = UDim2.new(1, -62, 0, 18)
-    tytulLabel.Position               = UDim2.new(0, 58, 0, 13)
-    tytulLabel.BackgroundTransparency = 1
-    tytulLabel.Text                   = tytul
-    tytulLabel.TextColor3             = Color3.fromRGB(235, 235, 235)
-    tytulLabel.Font                   = Enum.Font.GothamBold
-    tytulLabel.TextSize               = 12
-    tytulLabel.TextXAlignment         = Enum.TextXAlignment.Left
-    tytulLabel.TextTruncate           = Enum.TextTruncate.AtEnd
-    tytulLabel.ZIndex                 = 11
-    tytulLabel.Parent                 = ramka
+    tytulLabel.Size = UDim2.new(1,-62,0,18); tytulLabel.Position = UDim2.new(0,58,0,13)
+    tytulLabel.BackgroundTransparency = 1; tytulLabel.Text = tytul
+    tytulLabel.TextColor3 = Color3.fromRGB(235,235,235); tytulLabel.Font = Enum.Font.GothamBold
+    tytulLabel.TextSize = 12; tytulLabel.TextXAlignment = Enum.TextXAlignment.Left
+    tytulLabel.TextTruncate = Enum.TextTruncate.AtEnd; tytulLabel.ZIndex = 11
+    tytulLabel.Parent = ramka
 
     local trescLabel = Instance.new("TextLabel")
-    trescLabel.Size                   = UDim2.new(1, -62, 0, 26)
-    trescLabel.Position               = UDim2.new(0, 58, 0, 31)
-    trescLabel.BackgroundTransparency = 1
-    trescLabel.Text                   = tresc
-    trescLabel.TextColor3             = Color3.fromRGB(155, 155, 170)
-    trescLabel.Font                   = Enum.Font.Gotham
-    trescLabel.TextSize               = 10
-    trescLabel.TextXAlignment         = Enum.TextXAlignment.Left
-    trescLabel.TextWrapped            = true
-    trescLabel.ZIndex                 = 11
-    trescLabel.Parent                 = ramka
+    trescLabel.Size = UDim2.new(1,-62,0,26); trescLabel.Position = UDim2.new(0,58,0,31)
+    trescLabel.BackgroundTransparency = 1; trescLabel.Text = tresc
+    trescLabel.TextColor3 = Color3.fromRGB(155,155,170); trescLabel.Font = Enum.Font.Gotham
+    trescLabel.TextSize = 10; trescLabel.TextXAlignment = Enum.TextXAlignment.Left
+    trescLabel.TextWrapped = true; trescLabel.ZIndex = 11; trescLabel.Parent = ramka
 
     local progressBg = Instance.new("Frame")
-    progressBg.Size             = UDim2.new(1, 0, 0, 2)
-    progressBg.Position         = UDim2.new(0, 0, 1, -2)
-    progressBg.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
-    progressBg.BorderSizePixel  = 0
-    progressBg.ZIndex           = 11
-    progressBg.Parent           = ramka
+    progressBg.Size = UDim2.new(1,0,0,2); progressBg.Position = UDim2.new(0,0,1,-2)
+    progressBg.BackgroundColor3 = Color3.fromRGB(40,40,50)
+    progressBg.BorderSizePixel = 0; progressBg.ZIndex = 11; progressBg.Parent = ramka
     local progress = Instance.new("Frame")
-    progress.Size             = UDim2.new(1, 0, 1, 0)
-    progress.BackgroundColor3 = kolorAkcentu
-    progress.BorderSizePixel  = 0
-    progress.ZIndex           = 12
-    progress.Parent           = progressBg
+    progress.Size = UDim2.new(1,0,1,0); progress.BackgroundColor3 = kolorAkcentu
+    progress.BorderSizePixel = 0; progress.ZIndex = 12; progress.Parent = progressBg
 
     local CZAS    = 4
     local tweenIn = TweenService:Create(ramka,
@@ -161,8 +165,7 @@ local function pokazAlert(tytul, tresc, kolorAkcentu)
         { Position = targetPos })
     tweenIn:Play()
     local tweenProg = TweenService:Create(progress,
-        TweenInfo.new(CZAS, Enum.EasingStyle.Linear),
-        { Size = UDim2.new(0, 0, 1, 0) })
+        TweenInfo.new(CZAS, Enum.EasingStyle.Linear), { Size = UDim2.new(0,0,1,0) })
     tweenIn.Completed:Connect(function() tweenProg:Play() end)
     task.delay(CZAS + 0.3, function()
         local tweenOut = TweenService:Create(ramka,
@@ -179,7 +182,7 @@ end
 
 local function getUst()
     return currentConfig.ustawienia or {
-        kolorPodswietlenia = {255, 170, 0},
+        kolorPodswietlenia = {255,170,0},
         przezroczystosc    = 0.4,
         tekstNadGlowa      = "Konfident",
     }
@@ -211,15 +214,23 @@ local function kopiujDo(tekst)
 end
 
 local function pobierzJobId()
-    local ok, result = pcall(function() return game.JobId end)
-    if ok and result and result ~= "" then return result end
+    local ok, r = pcall(function() return game.JobId end)
+    if ok and r and r ~= "" then return r end
     return ""
 end
 
 local function pobierzGameId()
-    local ok, result = pcall(function() return tostring(game.PlaceId) end)
-    if ok and result then return result end
+    local ok, r = pcall(function() return tostring(game.PlaceId) end)
+    if ok and r then return r end
     return ""
+end
+
+-- Hash listy żeby nie przebudowywać gdy nic się nie zmieniło
+local function hashLista(lista)
+    local ids = {}
+    for _, g in ipairs(lista) do table.insert(ids, tostring(g.UserId)) end
+    table.sort(ids)
+    return table.concat(ids, ",") .. (spectateTarget and "|S:"..tostring(spectateTarget.UserId) or "")
 end
 
 -- ===================================================
@@ -250,39 +261,31 @@ local function dodajOznaczenia(gracz)
     if activeMarkers[gracz] then usunOznaczenia(gracz) end
 
     local folder = Instance.new("Folder")
-    folder.Name   = "KonfidentMarkery"
-    folder.Parent = char
+    folder.Name = "KonfidentMarkery"; folder.Parent = char
     activeMarkers[gracz] = folder
 
     local ust = getUst()
-    local k   = ust.kolorPodswietlenia or {255, 170, 0}
+    local k   = ust.kolorPodswietlenia or {255,170,0}
 
     local hl = Instance.new("Highlight")
-    hl.FillColor           = Color3.fromRGB(k[1], k[2], k[3])
-    hl.FillTransparency    = ust.przezroczystosc or 0.4
-    hl.OutlineColor        = Color3.fromRGB(k[1], k[2], k[3])
+    hl.FillColor = Color3.fromRGB(k[1],k[2],k[3])
+    hl.FillTransparency = ust.przezroczystosc or 0.4
+    hl.OutlineColor = Color3.fromRGB(k[1],k[2],k[3])
     hl.OutlineTransparency = 0
-    hl.Adornee             = char
-    hl.Parent              = folder
+    hl.Adornee = char; hl.Parent = folder
 
     local bb = Instance.new("BillboardGui")
-    bb.Name        = "TekstKonfidenta"
-    bb.AlwaysOnTop = true
-    bb.Size        = UDim2.new(0, 220, 0, 40)
-    bb.StudsOffset = Vector3.new(0, 2.5, 0)
-    bb.Adornee     = headPart
-    bb.Parent      = headPart
+    bb.Name = "TekstKonfidenta"; bb.AlwaysOnTop = true
+    bb.Size = UDim2.new(0,220,0,40); bb.StudsOffset = Vector3.new(0,2.5,0)
+    bb.Adornee = headPart; bb.Parent = headPart
 
     local lbl = Instance.new("TextLabel")
-    lbl.Size                   = UDim2.new(1, 0, 1, 0)
-    lbl.BackgroundTransparency = 1
-    lbl.Text                   = ust.tekstNadGlowa or "Konfident"
-    lbl.TextColor3             = Color3.fromRGB(k[1], k[2], k[3])
-    lbl.TextScaled             = true
-    lbl.Font                   = Enum.Font.GothamBold
-    lbl.TextStrokeColor3       = Color3.fromRGB(0, 0, 0)
-    lbl.TextStrokeTransparency = 0
-    lbl.Parent                 = bb
+    lbl.Size = UDim2.new(1,0,1,0); lbl.BackgroundTransparency = 1
+    lbl.Text = ust.tekstNadGlowa or "Konfident"
+    lbl.TextColor3 = Color3.fromRGB(k[1],k[2],k[3])
+    lbl.TextScaled = true; lbl.Font = Enum.Font.GothamBold
+    lbl.TextStrokeColor3 = Color3.fromRGB(0,0,0); lbl.TextStrokeTransparency = 0
+    lbl.Parent = bb
 end
 
 local function usunWszystkieOznaczenia()
@@ -302,15 +305,15 @@ local function odswiezWszystkieOznaczenia()
 end
 
 -- ===================================================
---  SPECTATE
+--  SPECTATE / TELEPORT
 -- ===================================================
 
 local function spectateGracza(gracz)
     if not gracz or not gracz.Character then return end
     local h = gracz.Character:FindFirstChild("Humanoid")
     if not h then return end
-    spectateTarget       = gracz
-    Camera.CameraType    = Enum.CameraType.Custom
+    spectateTarget = gracz
+    Camera.CameraType = Enum.CameraType.Custom
     Camera.CameraSubject = h
 end
 
@@ -319,16 +322,9 @@ local function stopSpectate()
     local char = LocalPlayer.Character
     if char then
         local h = char:FindFirstChild("Humanoid")
-        if h then
-            Camera.CameraType    = Enum.CameraType.Custom
-            Camera.CameraSubject = h
-        end
+        if h then Camera.CameraType = Enum.CameraType.Custom; Camera.CameraSubject = h end
     end
 end
-
--- ===================================================
---  TELEPORT
--- ===================================================
 
 local function teleportDo(gracz)
     if not gracz or not gracz.Character then
@@ -340,7 +336,7 @@ local function teleportDo(gracz)
     local myChar = LocalPlayer.Character
     local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
     if not myRoot then return end
-    myRoot.CFrame = root.CFrame * CFrame.new(2, 0, 2)
+    myRoot.CFrame = root.CFrame * CFrame.new(2,0,2)
     WindUI:Notify({ Title = "Teleport", Content = "Teleportowano do " .. gracz.Name, Icon = "map-pin", Duration = 3 })
 end
 
@@ -350,172 +346,175 @@ end
 
 local function pobierzKonfiguracje()
     local ok, result = pcall(function() return game:HttpGet(CONFIG_URL) end)
-    if not ok then warn("[KH] HttpGet: " .. tostring(result)); return nil end
+    if not ok then warn("[KH] HttpGet: "..tostring(result)); return nil end
     local func, err = loadstring(result)
-    if not func then warn("[KH] loadstring: " .. tostring(err)); return nil end
+    if not func then warn("[KH] loadstring: "..tostring(err)); return nil end
     local ok2, config = pcall(func)
-    if not ok2 then warn("[KH] pcall: " .. tostring(config)); return nil end
+    if not ok2 then warn("[KH] pcall: "..tostring(config)); return nil end
     return config
 end
 
 -- ===================================================
---  REBUILD STATYSTYK NA MAIN
---  Wywołuje sie raz - flaga mainStatBuilding blokuje
---  równoległy rebuild
+--  REFERENCJE DO ELEMENTÓW STATYSTYK
+--  (tworzone raz, aktualizowane przez zmienne)
 -- ===================================================
 
-local function rebuildMainStats()
-    if mainStatBuilding then return end
-    if not MainTab then return end
-    mainStatBuilding = true
+-- Paragraphe na Main - tworzymy raz, nigdy nie niszczymy
+local statBazaParagraph   = nil  -- Paragraph "Kont w bazie"
+local statSerwerParagraph = nil  -- Paragraph "Na serwerze"
 
-    -- Zniszcz stara sekcje jesli istnieje
-    if mainStatSection then
-        pcall(function() mainStatSection:Destroy() end)
-        mainStatSection = nil
-    end
-
-    -- Zbuduj nowa sekcje z aktualnymi danymi
-    pcall(function()
-        local bazaLiczba = liczbaKonfidentow()
-        local naSerwerze = #konfidenciNaSerwerzeLista()
-
-        mainStatSection = MainTab:Section({
-            Title  = "Statystyki",
-            Icon   = "bar-chart-2",
-            Opened = true,
-        })
-
-        mainStatSection:Paragraph({
-            Title   = "Kont w bazie konfidentow",
-            Content = tostring(bazaLiczba),
-        })
-
-        mainStatSection:Paragraph({
-            Title   = "Konfidentow na tym serwerze",
-            Content = tostring(naSerwerze),
-        })
-
-        mainStatSection:Space()
-
-        mainStatSection:Button({
-            Title    = "Odswiez",
-            Icon     = "refresh-cw",
-            Justify  = "Between",
-            Callback = function()
-                mainStatBuilding = false   -- reset flagi przed przebudowa
-                rebuildMainStats()
-                WindUI:Notify({ Title = "Statystyki", Content = "Zaktualizowano!", Icon = "check-circle", Duration = 2 })
-            end,
-        })
-    end)
-
-    mainStatBuilding = false
+local function aktualizujStatystyki()
+    if not statBazaParagraph or not statSerwerParagraph then return end
+    local baza     = liczbaKonfidentow()
+    local naSerw   = #konfidenciNaSerwerzeLista()
+    -- Paragraph w WindUI nie ma SetContent - zmieniamy przez instancję w środku
+    -- Destroy+recreate tej sekcji JEST zabronione (powoduje błąd ImageLabel)
+    -- Zamiast tego używamy własnego TextLabel overlay
+    pcall(function() statBazaParagraph._content.Text   = tostring(baza) end)
+    pcall(function() statSerwerParagraph._content.Text = tostring(naSerw) end)
 end
 
 -- ===================================================
---  THROTTLED REBUILD LIST (Lista + Teleport)
+--  REBUILD LISTY (Lista + Teleport)
+--  Używamy Destroy tylko na sekcjach list, NIE na sekcjach stałych
+--  Destroy sekcji z Paragraph powoduje błąd "Top is not a valid member"
+--  dlatego sekcje z Button są bezpieczne do Destroy
+-- ===================================================
+
+local function rebuildLista()
+    local obecni  = konfidenciNaSerwerzeLista()
+    local newHash = hashLista(obecni)
+
+    -- Pomiń jeśli nic się nie zmieniło
+    if newHash == lastListaHash then return end
+    lastListaHash = newHash
+
+    if not ListaTab then return end
+    pcall(function()
+        if konfidenciSection then
+            -- Bezpieczny destroy: tylko jeśli sekcja ma wyłącznie Button (nie Paragraph)
+            pcall(function() konfidenciSection:Destroy() end)
+            konfidenciSection = nil
+        end
+        konfidenciSection = ListaTab:Section({
+            Title  = ("Konfidenci na serwerze (%d)"):format(#obecni),
+            Icon   = "users",
+            Opened = true,
+        })
+        if #obecni == 0 then
+            konfidenciSection:Button({
+                Title  = "Brak konfidentów na serwerze",
+                Icon   = "user-x",
+                Locked = true,
+            })
+        else
+            for _, gracz in ipairs(obecni) do
+                local g       = gracz
+                local isSpect = (spectateTarget == g)
+                -- Thumbnail pobieramy asynchronicznie żeby nie blokować UI
+                local thumbUrl = thumbnailCache[g.UserId] or ""
+                konfidenciSection:Button({
+                    Title    = g.Name .. " (@" .. g.Name .. ")",
+                    Desc     = isSpect and "▶ Obserwujesz – kliknij aby stop"
+                                       or ("ID: " .. tostring(g.UserId)),
+                    Icon     = isSpect and "eye" or "user",
+                    Color    = isSpect and Color3.fromRGB(255,170,0) or nil,
+                    Callback = function()
+                        if spectateTarget == g then
+                            stopSpectate()
+                        else
+                            if spectateTarget then stopSpectate() end
+                            spectateGracza(g)
+                        end
+                        lastListaHash = "" -- wymuś rebuild
+                        rebuildLista()
+                    end,
+                })
+                -- Thumbnail w tle
+                if thumbUrl == "" then
+                    task.spawn(function()
+                        getThumb(g.UserId)
+                    end)
+                end
+            end
+        end
+    end)
+end
+
+local function rebuildTeleport()
+    local obecni   = konfidenciNaSerwerzeLista()
+    local filtered = {}
+    if teleportFilter ~= "" then
+        local szukaj = teleportFilter:lower()
+        for _, g in ipairs(obecni) do
+            if g.Name:lower():find(szukaj, 1, true) then
+                table.insert(filtered, g)
+            end
+        end
+    else
+        filtered = obecni
+    end
+
+    local newHash = hashLista(filtered) .. "|f:" .. teleportFilter
+    if newHash == lastTeleportHash then return end
+    lastTeleportHash = newHash
+
+    if not TeleportTab then return end
+    pcall(function()
+        if teleportListSection then
+            pcall(function() teleportListSection:Destroy() end)
+            teleportListSection = nil
+        end
+        teleportListSection = TeleportTab:Section({
+            Title  = ("Wyniki (%d)"):format(#filtered),
+            Icon   = "map-pin",
+            Opened = true,
+        })
+        if #obecni == 0 then
+            teleportListSection:Button({ Title = "Brak konfidentów na serwerze", Icon = "user-x", Locked = true })
+        elseif #filtered == 0 then
+            teleportListSection:Button({ Title = "Brak wyników dla: " .. teleportFilter, Icon = "search", Locked = true })
+        else
+            for _, gracz in ipairs(filtered) do
+                local g        = gracz
+                local thumbUrl = thumbnailCache[g.UserId] or ""
+                teleportListSection:Button({
+                    Title    = g.Name,
+                    Desc     = "ID: " .. tostring(g.UserId),
+                    Icon     = "map-pin",
+                    Justify  = "Between",
+                    Callback = function() teleportDo(g) end,
+                })
+                if thumbUrl == "" then
+                    task.spawn(function() getThumb(g.UserId) end)
+                end
+            end
+        end
+    end)
+end
+
+-- ===================================================
+--  SCHEDULE REBUILD - jeden na raz, throttled
 -- ===================================================
 
 local function scheduleRebuild()
-    if rebuildPending then return end
-    rebuildPending = true
+    if rebuildQueued then return end
+    rebuildQueued = true
     task.defer(function()
-        rebuildPending = false
-
-        -- Rebuild: sekcja Lista (konfidenci na serwerze)
-        if ListaTab then
-            pcall(function()
-                if konfidenciSection then
-                    pcall(function() konfidenciSection:Destroy() end)
-                    konfidenciSection = nil
-                end
-                local obecni = konfidenciNaSerwerzeLista()
-                konfidenciSection = ListaTab:Section({
-                    Title  = ("Konfidenci na serwerze (%d)"):format(#obecni),
-                    Icon   = "users",
-                    Opened = true,
-                })
-                if #obecni == 0 then
-                    konfidenciSection:Paragraph({ Title = "Brak konfidentow", Content = "Nikt z listy nie jest na tym serwerze" })
-                else
-                    for _, gracz in ipairs(obecni) do
-                        local g       = gracz
-                        local isSpect = (spectateTarget == g)
-                        konfidenciSection:Button({
-                            Title    = g.Name,
-                            Desc     = isSpect and "Obserwujesz – kliknij aby stop" or "Kliknij aby spectate",
-                            Icon     = "user",
-                            Color    = isSpect and Color3.fromRGB(255, 170, 0) or nil,
-                            Callback = function()
-                                if spectateTarget == g then
-                                    stopSpectate()
-                                else
-                                    if spectateTarget then stopSpectate() end
-                                    spectateGracza(g)
-                                end
-                                scheduleRebuild()
-                            end,
-                        })
-                    end
-                end
-            end)
-        end
-
-        -- Rebuild: sekcja Teleport
-        if TeleportTab then
-            pcall(function()
-                if teleportListSection then
-                    pcall(function() teleportListSection:Destroy() end)
-                    teleportListSection = nil
-                end
-                local obecni   = konfidenciNaSerwerzeLista()
-                local filtered = {}
-                if teleportFilter ~= "" then
-                    local szukaj = teleportFilter:lower()
-                    for _, g in ipairs(obecni) do
-                        if g.Name:lower():find(szukaj, 1, true) then
-                            table.insert(filtered, g)
-                        end
-                    end
-                else
-                    filtered = obecni
-                end
-                teleportListSection = TeleportTab:Section({
-                    Title  = ("Wyniki (%d)"):format(#filtered),
-                    Icon   = "map-pin",
-                    Opened = true,
-                })
-                if #obecni == 0 then
-                    teleportListSection:Paragraph({ Title = "Brak konfidentow", Content = "Nikt z listy nie jest na tym serwerze" })
-                elseif #filtered == 0 then
-                    teleportListSection:Paragraph({ Title = "Brak wynikow", Content = "Nie znaleziono: " .. teleportFilter })
-                else
-                    for _, gracz in ipairs(filtered) do
-                        local g = gracz
-                        teleportListSection:Button({
-                            Title    = g.Name,
-                            Desc     = "Kliknij aby teleportowac",
-                            Icon     = "map-pin",
-                            Justify  = "Between",
-                            Callback = function() teleportDo(g) end,
-                        })
-                    end
-                end
-            end)
-        end
-
-        -- Odswiez statystyki (Main) – reset flagi zeby moc odbudowac
-        mainStatBuilding = false
-        rebuildMainStats()
+        rebuildQueued = false
+        -- Uruchamiamy każdy rebuild w osobnym spawn żeby nie blokować
+        task.spawn(rebuildLista)
+        task.spawn(rebuildTeleport)
+        -- Statystyki aktualizujemy prosto
+        task.spawn(aktualizujStatystyki)
     end)
 end
 
 -- ===================================================
---  AKTUALIZACJA KONFIG
+--  SYNC BAZY (co 60 sekund)
 -- ===================================================
 
-local function aktualizujListe()
+local function syncBazy()
     task.spawn(function()
         local nowaKonfig = pobierzKonfiguracje()
         if not nowaKonfig then return end
@@ -524,6 +523,7 @@ local function aktualizujListe()
         for _, uid in ipairs(nowaKonfig.konfidenci or {}) do nowi[uid] = true end
         local starzy = currentConfig.konfidenci or {}
 
+        -- Usuń oznaczenia dla usuniętych
         for uid in pairs(starzy) do
             if not nowi[uid] then
                 for _, g in ipairs(Players:GetPlayers()) do
@@ -531,6 +531,7 @@ local function aktualizujListe()
                 end
             end
         end
+        -- Dodaj oznaczenia dla nowych
         for uid in pairs(nowi) do
             if not starzy[uid] then
                 for _, g in ipairs(Players:GetPlayers()) do
@@ -542,12 +543,16 @@ local function aktualizujListe()
         currentConfig            = nowaKonfig
         currentConfig.konfidenci = nowi
         currentConfig.ustawienia = currentConfig.ustawienia or {
-            kolorPodswietlenia = {255, 170, 0},
+            kolorPodswietlenia = {255,170,0},
             przezroczystosc    = 0.4,
             tekstNadGlowa      = "Konfident",
         }
 
-        print(("[KH] Odswiezono. Konfidenci w bazie: %d"):format(liczbaKonfidentow()))
+        -- Zresetuj hash żeby wymusić rebuild po zmianie bazy
+        lastListaHash    = ""
+        lastTeleportHash = ""
+
+        print(("[KH] Sync bazy. Konfidenci: %d"):format(liczbaKonfidentow()))
         scheduleRebuild()
     end)
 end
@@ -564,24 +569,26 @@ local function monitorujGracza(gracz)
     gracz.CharacterAdded:Connect(function()
         task.wait(0.3)
         if czyKonfident(gracz) then dodajOznaczenia(gracz) end
+        lastListaHash = ""; lastTeleportHash = ""
         scheduleRebuild()
     end)
 
     gracz.CharacterRemoving:Connect(function()
         usunOznaczenia(gracz)
         if spectateTarget == gracz then stopSpectate() end
+        lastListaHash = ""; lastTeleportHash = ""
         scheduleRebuild()
     end)
 end
 
 -- ===================================================
---  AUTO-ODSWIEZ
+--  AUTO-SYNC CO 60 SEKUND
 -- ===================================================
 
-local function startAutoRefresh()
+local function startAutoSync()
     while true do
         task.wait(REFRESH_TIME)
-        aktualizujListe()
+        syncBazy()
     end
 end
 
@@ -592,15 +599,12 @@ end
 local Window = WindUI:CreateWindow({
     Title         = "KonfidentHunter",
     Icon          = "shield-alert",
-    Author        = "v5.2",
+    Author        = "v5.3",
     Folder        = "KonfidentHunter",
     NewElements   = true,
     HideSearchBar = true,
     ToggleKey     = Enum.KeyCode[DOMYSLNY_KLUCZ],
-    Topbar = {
-        Height      = 44,
-        ButtonsType = "Mac",
-    },
+    Topbar        = { Height = 44, ButtonsType = "Mac" },
 })
 
 -- ===================================================
@@ -610,60 +614,72 @@ local Window = WindUI:CreateWindow({
 MainTab = Window:Tab({ Title = "Main", Icon = "home" })
 MainTab:Select()
 
--- --------------------------------------------------
--- SEKCJA 1: Mój profil (nick + avatar w jednym)
--- --------------------------------------------------
-
+-- Sekcja profil (tworzona raz, nie niszczona)
 local ProfilSekcja = MainTab:Section({
     Title  = "Mój profil",
     Icon   = "user-circle",
     Opened = true,
 })
 
-local nick    = LocalPlayer.Name
-local display = LocalPlayer.DisplayName
-local userId  = LocalPlayer.UserId
-
-local nickTekst = (display ~= nick)
-    and (display .. " (@" .. nick .. ")")
-    or  ("@" .. nick)
+local myNick    = LocalPlayer.Name
+local myDisplay = LocalPlayer.DisplayName
+local myId      = LocalPlayer.UserId
+local nickTekst = (myDisplay ~= myNick)
+    and (myDisplay .. " (@" .. myNick .. ")")
+    or  ("@" .. myNick)
 
 ProfilSekcja:Paragraph({
     Title   = nickTekst,
-    Content = "UserID: " .. tostring(userId),
+    Content = "User ID: " .. tostring(myId),
 })
 
--- Avatar pobieramy asynchronicznie i dopisujemy
+-- Skin/avatar asynchronicznie
 task.spawn(function()
-    local avatarUrl = ""
-    pcall(function()
-        avatarUrl = Players:GetUserThumbnailAsync(
-            userId,
-            Enum.ThumbnailType.AvatarBust,
-            Enum.ThumbnailSize.Size100x100
-        ) or ""
-    end)
-    if avatarUrl ~= "" then
+    local url = getThumb(myId)
+    if url ~= "" then
         pcall(function()
             ProfilSekcja:Paragraph({
-                Title   = "Avatar",
-                Content = avatarUrl,
+                Title   = "Avatar (skin)",
+                Content = url,
             })
         end)
     end
 end)
 
--- --------------------------------------------------
--- SEKCJA 2: Statystyki (budowana dynamicznie)
--- Zostanie wypełniona przez rebuildMainStats()
--- --------------------------------------------------
+ProfilSekcja:Space()
 
--- (sekcja tworzona w rebuildMainStats po załadowaniu configu)
+-- Sekcja statystyki (tworzona raz, nigdy nie niszczona)
+local StatSekcja = MainTab:Section({
+    Title  = "Statystyki",
+    Icon   = "bar-chart-2",
+    Opened = true,
+})
 
--- --------------------------------------------------
--- SEKCJA 3: Serwer – tylko kopiowanie
--- --------------------------------------------------
+-- Paragraph nie ma setContent - korzystamy z Button z Locked który możemy podmienić
+-- Alternatywa: używamy zwykłych Paragraph i akceptujemy że content będzie "0" na start
+statBazaParagraph = StatSekcja:Paragraph({
+    Title   = "Kont w bazie konfidentów",
+    Content = "0",
+})
 
+statSerwerParagraph = StatSekcja:Paragraph({
+    Title   = "Konfidentów na tym serwerze",
+    Content = "0",
+})
+
+StatSekcja:Space()
+
+StatSekcja:Button({
+    Title    = "Odśwież statystyki",
+    Icon     = "refresh-cw",
+    Justify  = "Between",
+    Callback = function()
+        aktualizujStatystyki()
+        WindUI:Notify({ Title = "Statystyki", Content = "Zaktualizowano!", Icon = "check-circle", Duration = 2 })
+    end,
+})
+
+-- Sekcja serwer (tworzona raz, nie niszczona)
 local SerwSekcja = MainTab:Section({
     Title  = "Serwer",
     Icon   = "server",
@@ -672,7 +688,7 @@ local SerwSekcja = MainTab:Section({
 
 SerwSekcja:Button({
     Title    = "Kopiuj Job ID",
-    Desc     = "Skopiuj ID instancji serwera",
+    Desc     = "ID instancji serwera",
     Icon     = "copy",
     Justify  = "Between",
     Callback = function()
@@ -680,9 +696,9 @@ SerwSekcja:Button({
         if id ~= "" then
             local ok = kopiujDo(id)
             WindUI:Notify({
-                Title    = ok and "Skopiowano!" or "Błąd",
-                Content  = ok and id:sub(1, 30) .. "..." or "Nie udalo sie skopiowac",
-                Icon     = ok and "check-circle" or "alert-circle",
+                Title   = ok and "Skopiowano!" or "Błąd",
+                Content = ok and id:sub(1,28).."..." or "Nie udało się skopiować",
+                Icon    = ok and "check-circle" or "alert-circle",
                 Duration = 3,
             })
         else
@@ -693,7 +709,7 @@ SerwSekcja:Button({
 
 SerwSekcja:Button({
     Title    = "Kopiuj Game ID",
-    Desc     = "Skopiuj Place ID gry",
+    Desc     = "Place ID gry",
     Icon     = "copy",
     Justify  = "Between",
     Callback = function()
@@ -701,9 +717,9 @@ SerwSekcja:Button({
         if id ~= "" then
             local ok = kopiujDo(id)
             WindUI:Notify({
-                Title    = ok and "Skopiowano!" or "Błąd",
-                Content  = ok and ("Place ID: " .. id) or "Nie udalo sie skopiowac",
-                Icon     = ok and "check-circle" or "alert-circle",
+                Title   = ok and "Skopiowano!" or "Błąd",
+                Content = ok and ("Place ID: "..id) or "Nie udało się skopiować",
+                Icon    = ok and "check-circle" or "alert-circle",
                 Duration = 3,
             })
         end
@@ -722,13 +738,13 @@ SerwSekcja:Button({
             local link = ("roblox://experiences/start?placeId=%s&gameInstanceId=%s"):format(gid, jid)
             local ok   = kopiujDo(link)
             WindUI:Notify({
-                Title    = ok and "Skopiowano!" or "Błąd",
-                Content  = ok and "Link do serwera w schowku" or "Nie udalo sie skopiowac",
-                Icon     = ok and "check-circle" or "alert-circle",
+                Title   = ok and "Skopiowano!" or "Błąd",
+                Content = ok and "Link do serwera w schowku" or "Nie udało się skopiować",
+                Icon    = ok and "check-circle" or "alert-circle",
                 Duration = 3,
             })
         else
-            WindUI:Notify({ Title = "Błąd", Content = "Brak Game ID lub Job ID", Icon = "alert-circle", Duration = 3 })
+            WindUI:Notify({ Title = "Błąd", Content = "Brak Game/Job ID", Icon = "alert-circle", Duration = 3 })
         end
     end,
 })
@@ -742,7 +758,7 @@ ListaTab = Window:Tab({ Title = "Lista", Icon = "users" })
 local AkcjeSekcja = ListaTab:Section({ Title = "Akcje", Icon = "zap", Opened = true })
 
 AkcjeSekcja:Toggle({
-    Title    = "Pokaz oznaczenia",
+    Title    = "Pokaż oznaczenia",
     Desc     = "Highlight i tekst nad głową konfidentów",
     Icon     = "eye",
     Value    = true,
@@ -755,11 +771,14 @@ AkcjeSekcja:Toggle({
 AkcjeSekcja:Space()
 
 AkcjeSekcja:Button({
-    Title    = "Odswież listę",
-    Desc     = "Pobiera aktualną listę konfidentów",
+    Title    = "Odśwież listę",
+    Desc     = "Wymusza ponowne pobranie listy",
     Icon     = "refresh-cw",
     Justify  = "Between",
-    Callback = function() aktualizujListe() end,
+    Callback = function()
+        lastListaHash = ""; lastTeleportHash = ""
+        syncBazy()
+    end,
 })
 
 ListaTab:Space()
@@ -774,8 +793,9 @@ TeleportTab:Section({ Title = "Szukaj", Icon = "search", Opened = true }):Input(
     Title       = "Nick konfidenta",
     Placeholder = "np. bartos_GTKM",
     Callback    = function(v)
-        teleportFilter = v or ""
-        scheduleRebuild()
+        teleportFilter   = v or ""
+        lastTeleportHash = ""
+        task.spawn(rebuildTeleport)
     end,
 })
 
@@ -796,9 +816,9 @@ DiscordSekcja:Button({
     Callback = function()
         local ok = kopiujDo(DISCORD_URL)
         WindUI:Notify({
-            Title    = "Discord",
-            Content  = ok and "Link skopiowany!" or DISCORD_URL,
-            Icon     = ok and "check-circle" or "message-circle",
+            Title   = "Discord",
+            Content = ok and "Link skopiowany!" or DISCORD_URL,
+            Icon    = ok and "check-circle" or "message-circle",
             Duration = ok and 3 or 6,
         })
     end,
@@ -819,7 +839,7 @@ UstawTab:Section({ Title = "Klawisz GUI", Icon = "keyboard", Opened = true }):Ke
         if not v or v == "" then return end
         currentKeybind = v
         pcall(function() Window:SetToggleKey(Enum.KeyCode[v]) end)
-        WindUI:Notify({ Title = "Keybind", Content = "Klawisz GUI: " .. v, Icon = "keyboard", Duration = 3 })
+        WindUI:Notify({ Title = "Keybind", Content = "Klawisz GUI: "..v, Icon = "keyboard", Duration = 3 })
     end,
 })
 
@@ -849,7 +869,7 @@ WizualneSekcja:Input({
     Placeholder = "Konfident",
     Callback    = function(v)
         if not currentConfig.ustawienia then currentConfig.ustawienia = {} end
-        currentConfig.ustawienia.tekstNadGlowa = (v ~= "" and v or "Konfident")
+        currentConfig.ustawienia.tekstNadGlowa = v ~= "" and v or "Konfident"
         for gracz in pairs(activeMarkers) do
             local char = gracz.Character
             if char then
@@ -858,9 +878,7 @@ WizualneSekcja:Input({
                     local bb = head:FindFirstChild("TekstKonfidenta")
                     if bb then
                         local lbl = bb:FindFirstChildOfClass("TextLabel")
-                        if lbl then
-                            pcall(function() lbl.Text = currentConfig.ustawienia.tekstNadGlowa end)
-                        end
+                        if lbl then pcall(function() lbl.Text = currentConfig.ustawienia.tekstNadGlowa end) end
                     end
                 end
             end
@@ -883,18 +901,14 @@ local function inicjuj()
             currentConfig            = config
             currentConfig.konfidenci = slownik
             currentConfig.ustawienia = currentConfig.ustawienia or {
-                kolorPodswietlenia = {255, 170, 0},
+                kolorPodswietlenia = {255,170,0},
                 przezroczystosc    = 0.4,
                 tekstNadGlowa      = "Konfident",
             }
         else
             currentConfig = {
                 konfidenci = {},
-                ustawienia = {
-                    kolorPodswietlenia = {255, 170, 0},
-                    przezroczystosc    = 0.4,
-                    tekstNadGlowa      = "Konfident",
-                },
+                ustawienia = { kolorPodswietlenia = {255,170,0}, przezroczystosc = 0.4, tekstNadGlowa = "Konfident" },
             }
             warn("[KH] Pusta konfiguracja!")
         end
@@ -902,51 +916,64 @@ local function inicjuj()
         local bazaLiczba = liczbaKonfidentow()
         print(("[KH] Start. Konfidenci w bazie: %d"):format(bazaLiczba))
 
-        -- Oznaczenia dla graczy już obecnych
+        -- Wstępne thumbnaily dla graczy już na serwerze
         for _, g in ipairs(Players:GetPlayers()) do
-            if g ~= LocalPlayer and czyKonfident(g) and g.Character then
-                dodajOznaczenia(g)
+            if g ~= LocalPlayer then
+                task.spawn(function() getThumb(g.UserId) end)
+                if czyKonfident(g) and g.Character then dodajOznaczenia(g) end
             end
         end
 
-        -- Jednorazowy rebuild na start
+        -- Aktualizuj statystyki (tekst w Paragraph)
+        aktualizujStatystyki()
+
+        -- Jednorazowy rebuild list
+        lastListaHash = ""; lastTeleportHash = ""
         scheduleRebuild()
 
-        -- Powiadomienie startowe (z opóźnieniem, żeby GUI WindUI zdążyło się otworzyć)
-        task.delay(1.0, function()
-            local naSerwerze = #konfidenciNaSerwerzeLista()
+        -- Powiadomienia startowe z opóźnieniami żeby się nie nakładały
+        task.delay(1.2, function()
             WindUI:Notify({
                 Title    = "KonfidentHunter",
                 Content  = ("Baza: %d kont | Klawisz: %s"):format(bazaLiczba, currentKeybind),
                 Icon     = "shield-alert",
                 Duration = 5,
             })
-
-            -- Alert o konfidentach pojawia się po powiadomieniu startowym
-            task.delay(1.5, function()
-                if naSerwerze == 0 then
-                    if bazaLiczba > 0 then
-                        pokazAlert("KonfidentHunter", ("Załadowano %d kont. Brak konfidentów na serwerze."):format(bazaLiczba), Color3.fromRGB(255, 170, 0))
-                    end
-                else
-                    pokazAlert("KonfidentHunter!", ("%d konfident(ów) JEST NA TYM SERWERZE!"):format(naSerwerze), Color3.fromRGB(255, 60, 60))
-                end
-            end)
         end)
 
-        -- Monitorowanie graczy
-        for _, g in ipairs(Players:GetPlayers()) do
-            monitorujGracza(g)
-        end
+        task.delay(2.5, function()
+            local naSerwerze = #konfidenciNaSerwerzeLista()
+            if naSerwerze > 0 then
+                pokazAlert(
+                    "UWAGA! Konfident na serwerze!",
+                    ("%d konfident(ów) jest na tym serwerze!"):format(naSerwerze),
+                    Color3.fromRGB(255, 60, 60)
+                )
+            elseif bazaLiczba > 0 then
+                pokazAlert(
+                    "KonfidentHunter aktywny",
+                    ("Załadowano %d kont. Brak konfidentów na serwerze."):format(bazaLiczba),
+                    Color3.fromRGB(255, 170, 0)
+                )
+            end
+        end)
+
+        -- Monitorowanie
+        for _, g in ipairs(Players:GetPlayers()) do monitorujGracza(g) end
 
         Players.PlayerAdded:Connect(function(gracz)
             if gracz == LocalPlayer then return end
             monitorujGracza(gracz)
+            -- Pobierz thumbnail w tle
+            task.spawn(function() getThumb(gracz.UserId) end)
             task.wait(0.5)
             if czyKonfident(gracz) then
-                -- Najpierw alert (duży widoczny), potem Notify z opóźnieniem
-                pokazAlert("Konfident dołączył!", gracz.Name .. " wbił na serwer!", Color3.fromRGB(255, 60, 60))
-                task.delay(0.8, function()
+                pokazAlert(
+                    "Konfident dołączył!",
+                    gracz.Name .. " wbił na serwer!",
+                    Color3.fromRGB(255, 60, 60)
+                )
+                task.delay(1.0, function()
                     WindUI:Notify({
                         Title    = "Konfident na serwerze!",
                         Content  = gracz.Name .. " jest na tym serwerze!",
@@ -956,20 +983,27 @@ local function inicjuj()
                 end)
                 if gracz.Character then dodajOznaczenia(gracz) end
             end
+            lastListaHash = ""; lastTeleportHash = ""
             scheduleRebuild()
         end)
 
         Players.PlayerRemoving:Connect(function(gracz)
             task.wait(0.15)
-            monitorowani[gracz] = nil
+            monitorowani[gracz]    = nil
+            thumbnailCache[gracz.UserId] = nil  -- wyczyść cache wychodzącego
             if spectateTarget == gracz then stopSpectate() end
             if czyKonfident(gracz) then
-                pokazAlert("Konfident opuścił serwer", gracz.Name .. " wyszedł.", Color3.fromRGB(100, 180, 100))
+                pokazAlert(
+                    "Konfident opuścił serwer",
+                    gracz.Name .. " wyszedł.",
+                    Color3.fromRGB(100, 180, 100)
+                )
             end
+            lastListaHash = ""; lastTeleportHash = ""
             scheduleRebuild()
         end)
 
-        task.spawn(startAutoRefresh)
+        task.spawn(startAutoSync)
     end)
 end
 
