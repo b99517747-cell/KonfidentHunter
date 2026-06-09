@@ -1,11 +1,5 @@
 --[[
-    Konfident Hunter v5 - WindUI Edition
-    Zmiany v5.1:
-      - Nowa zakladka "Main" (otwierana jako pierwsza)
-      - Statystyki: liczba kont w bazie, moj nick/skin, konfidenci na serwerze
-      - Przycisk kopiowania JobId i GameId
-      - Naprawa bledu "Top is not a valid member of ImageLabel" przez uzycie pcall wszeudzie
-      - Bezpieczne tworzenie sekcji / destroy przez pcall z flaga waznosci
+    Konfident Hunter v5.1 - WindUI Edition
 ]]
 
 -- ===== KONFIGURACJA =====
@@ -15,21 +9,9 @@ local DOMYSLNY_KLUCZ = "K"
 local DISCORD_URL    = "https://discord.gg/YjTWGZYD"
 -- ========================
 
-local _windUISource
-local _windUIUrls = {
-    "https://raw.githubusercontent.com/Footagesus/WindUI/main/dist/main.lua",
-    "https://raw.githubusercontent.com/Footagesus/WindUI/refs/heads/main/dist/main.lua",
-}
-for _, url in ipairs(_windUIUrls) do
-    local ok, result = pcall(function() return game:HttpGet(url) end)
-    if ok and result and #result > 100 then
-        _windUISource = result
-        break
-    end
-end
-assert(_windUISource, "[KH] Nie udalo sie pobrac WindUI! Sprawdz polaczenie.")
-local WindUI = loadstring(_windUISource)()
-assert(WindUI, "[KH] WindUI nie zostalo zaladowane poprawnie!")
+local WindUI = loadstring(game:HttpGet(
+    "https://raw.githubusercontent.com/Footagesus/WindUI/main/dist/main.lua"
+))()
 
 local Players      = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
@@ -53,10 +35,8 @@ local konfidenciSection   = nil
 local teleportListSection = nil
 local teleportFilter      = ""
 
--- Etykiety statystyk na zakladce Main (do aktualizacji)
-local statBazaLabel    = nil
-local statSerwerLabel  = nil
-local statAvatarParagraph = nil
+-- Sekcja statystyk na Main do przebudowy
+local mainStatSection     = nil
 
 -- ===================================================
 --  SYSTEM ALERTOW (prawy dolny rog)
@@ -90,7 +70,7 @@ local function pokazAlert(tytul, tresc, ikonaTekst, kolorAkcentu)
     if not alertGui or not alertGui.Parent then stworzAlertGui() end
 
     local posOff    = -(ALERT_H + ALERT_MARGIN + ALERT_BOTTOM)
-    local startPos  = UDim2.new(1, ALERT_MARGIN,           1, posOff)
+    local startPos  = UDim2.new(1, ALERT_MARGIN,              1, posOff)
     local targetPos = UDim2.new(1, -(ALERT_W + ALERT_MARGIN), 1, posOff)
 
     local ramka = Instance.new("Frame")
@@ -104,10 +84,10 @@ local function pokazAlert(tytul, tresc, ikonaTekst, kolorAkcentu)
     Instance.new("UICorner", ramka).CornerRadius = UDim.new(0, 14)
 
     local stroke = Instance.new("UIStroke")
-    stroke.Color             = Color3.fromRGB(55, 55, 65)
-    stroke.Thickness         = 1
-    stroke.ApplyStrokeMode   = Enum.ApplyStrokeMode.Border
-    stroke.Parent            = ramka
+    stroke.Color           = Color3.fromRGB(55, 55, 65)
+    stroke.Thickness       = 1
+    stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    stroke.Parent          = ramka
 
     local ikonaBg = Instance.new("Frame")
     ikonaBg.Size             = UDim2.new(0, 36, 0, 36)
@@ -117,9 +97,9 @@ local function pokazAlert(tytul, tresc, ikonaTekst, kolorAkcentu)
         math.clamp(math.floor(kolorAkcentu.G * 255 * 0.18), 0, 255),
         math.clamp(math.floor(kolorAkcentu.B * 255 * 0.18), 0, 255)
     )
-    ikonaBg.BorderSizePixel  = 0
-    ikonaBg.ZIndex           = 11
-    ikonaBg.Parent           = ramka
+    ikonaBg.BorderSizePixel = 0
+    ikonaBg.ZIndex          = 11
+    ikonaBg.Parent          = ramka
     Instance.new("UICorner", ikonaBg).CornerRadius = UDim.new(1, 0)
 
     local ikona = Instance.new("TextLabel")
@@ -175,7 +155,7 @@ local function pokazAlert(tytul, tresc, ikonaTekst, kolorAkcentu)
     progress.ZIndex           = 12
     progress.Parent           = progressBg
 
-    local CZAS = 4
+    local CZAS    = 4
     local tweenIn = TweenService:Create(ramka,
         TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
         { Position = targetPos })
@@ -227,48 +207,21 @@ local function konfidenciNaSerwerzeLista()
     return lista
 end
 
--- Bezpieczna kopia tekstu do schowka
 local function kopiujDo(tekst)
     local ok = pcall(function() setclipboard(tekst) end)
     return ok
 end
 
--- Pobierz ID aktualnego serwera (JobId)
 local function pobierzJobId()
     local ok, result = pcall(function() return game.JobId end)
-    if ok and result and result ~= "" then
-        return result
-    end
-    return nil
+    if ok and result and result ~= "" then return result end
+    return ""
 end
 
--- Pobierz GameId (PlaceId)
 local function pobierzGameId()
     local ok, result = pcall(function() return tostring(game.PlaceId) end)
     if ok and result then return result end
-    return nil
-end
-
--- Pobierz URL avatara gracza (thumbnail)
-local function pobierzAvatarUrl(userId)
-    local ok, result = pcall(function()
-        return Players:GetUserThumbnailAsync(
-            userId,
-            Enum.ThumbnailType.AvatarBust,
-            Enum.ThumbnailSize.Size100x100
-        )
-    end)
-    if ok and result then return result end
-    return nil
-end
-
--- Pobierz informacje o skinie (headshot URL + display name)
-local function pobierzInfoGracza()
-    local userId = LocalPlayer.UserId
-    local nick   = LocalPlayer.Name
-    local display = LocalPlayer.DisplayName
-    local avatarUrl = pobierzAvatarUrl(userId)
-    return nick, display, avatarUrl, userId
+    return ""
 end
 
 -- ===================================================
@@ -408,36 +361,55 @@ local function pobierzKonfiguracje()
 end
 
 -- ===================================================
---  AKTUALIZACJA STATYSTYK NA ZAKLADCE MAIN
+--  PRZEBUDOWA SEKCJI STATYSTYK NA MAIN
 -- ===================================================
 
-local function aktualizujStatystykiMain()
+local function rebuildMainStats()
     if not MainTab then return end
-    task.spawn(function()
-        -- Odczekaj chwile, zeby UI sie zainicjalizowalo
-        local bazaLiczba  = liczbaKonfidentow()
-        local naSerwerze  = #konfidenciNaSerwerzeLista()
+    pcall(function()
+        if mainStatSection then
+            pcall(function() mainStatSection:Destroy() end)
+            mainStatSection = nil
+        end
+    end)
+    pcall(function()
+        local bazaLiczba = liczbaKonfidentow()
+        local naSerwerze = #konfidenciNaSerwerzeLista()
 
-        -- Bezpiecznie aktualizuj paragrafy jesli istnieja
-        if statBazaLabel then
-            pcall(function()
-                statBazaLabel:SetTitle(
-                    ("Kont w bazie konfidentow: %d"):format(bazaLiczba)
-                )
-            end)
-        end
-        if statSerwerLabel then
-            pcall(function()
-                statSerwerLabel:SetTitle(
-                    ("Konfidentow na tym serwerze: %d"):format(naSerwerze)
-                )
-            end)
-        end
+        mainStatSection = MainTab:Section({
+            Title  = "Statystyki",
+            Icon   = "bar-chart-2",
+            Opened = true,
+        })
+
+        mainStatSection:Button({
+            Title  = ("Kont w bazie: %d"):format(bazaLiczba),
+            Icon   = "database",
+            Locked = true,
+        })
+
+        mainStatSection:Button({
+            Title  = ("Konfidentow na serwerze: %d"):format(naSerwerze),
+            Icon   = "wifi",
+            Locked = true,
+        })
+
+        mainStatSection:Space()
+
+        mainStatSection:Button({
+            Title    = "Odswiez statystyki",
+            Icon     = "refresh-cw",
+            Justify  = "Between",
+            Callback = function()
+                rebuildMainStats()
+                WindUI:Notify({ Title = "Main", Content = "Statystyki odswieżone!", Icon = "check-circle", Duration = 2 })
+            end,
+        })
     end)
 end
 
 -- ===================================================
---  THROTTLED REBUILD - max 1 rebuild na klatke
+--  THROTTLED REBUILD
 -- ===================================================
 
 local function scheduleRebuild()
@@ -453,9 +425,7 @@ local function scheduleRebuild()
                     pcall(function() konfidenciSection:Destroy() end)
                     konfidenciSection = nil
                 end
-            end)
-            local obecni = konfidenciNaSerwerzeLista()
-            pcall(function()
+                local obecni = konfidenciNaSerwerzeLista()
                 konfidenciSection = ListaTab:Section({
                     Title  = ("Konfidenci na serwerze (%d)"):format(#obecni),
                     Icon   = "users",
@@ -487,34 +457,30 @@ local function scheduleRebuild()
             end)
         end
 
-        -- Rebuild: Teleport (tylko lista, nie Input)
+        -- Rebuild: Teleport
         if TeleportTab then
             pcall(function()
                 if teleportListSection then
                     pcall(function() teleportListSection:Destroy() end)
                     teleportListSection = nil
                 end
-            end)
-            local obecni = konfidenciNaSerwerzeLista()
-            local filtered = {}
-            if teleportFilter ~= "" then
-                local szukaj = teleportFilter:lower()
-                for _, g in ipairs(obecni) do
-                    if g.Name:lower():find(szukaj, 1, true) then
-                        table.insert(filtered, g)
+                local obecni   = konfidenciNaSerwerzeLista()
+                local filtered = {}
+                if teleportFilter ~= "" then
+                    local szukaj = teleportFilter:lower()
+                    for _, g in ipairs(obecni) do
+                        if g.Name:lower():find(szukaj, 1, true) then
+                            table.insert(filtered, g)
+                        end
                     end
+                else
+                    filtered = obecni
                 end
-            else
-                filtered = obecni
-            end
-
-            pcall(function()
                 teleportListSection = TeleportTab:Section({
                     Title  = ("Konfidenci na serwerze (%d)"):format(#filtered),
                     Icon   = "map-pin",
                     Opened = true,
                 })
-
                 if #obecni == 0 then
                     teleportListSection:Button({ Title = "Brak konfidentow na serwerze", Icon = "user-x", Locked = true })
                 elseif #filtered == 0 then
@@ -535,12 +501,12 @@ local function scheduleRebuild()
         end
 
         -- Odswiez statystyki na Main
-        aktualizujStatystykiMain()
+        rebuildMainStats()
     end)
 end
 
 -- ===================================================
---  AKTUALIZACJA KONFIG (zawsze w osobnym watku)
+--  AKTUALIZACJA KONFIG
 -- ===================================================
 
 local function aktualizujListe()
@@ -549,20 +515,20 @@ local function aktualizujListe()
         if not nowaKonfig then return end
 
         local nowi  = {}
-        for _, userId in ipairs(nowaKonfig.konfidenci or {}) do nowi[userId] = true end
+        for _, uid in ipairs(nowaKonfig.konfidenci or {}) do nowi[uid] = true end
         local starzy = currentConfig.konfidenci or {}
 
-        for userId in pairs(starzy) do
-            if not nowi[userId] then
+        for uid in pairs(starzy) do
+            if not nowi[uid] then
                 for _, g in ipairs(Players:GetPlayers()) do
-                    if g.UserId == userId then usunOznaczenia(g) end
+                    if g.UserId == uid then usunOznaczenia(g) end
                 end
             end
         end
-        for userId in pairs(nowi) do
-            if not starzy[userId] then
+        for uid in pairs(nowi) do
+            if not starzy[uid] then
                 for _, g in ipairs(Players:GetPlayers()) do
-                    if g.UserId == userId and g.Character then dodajOznaczenia(g) end
+                    if g.UserId == uid and g.Character then dodajOznaczenia(g) end
                 end
             end
         end
@@ -581,7 +547,7 @@ local function aktualizujListe()
 end
 
 -- ===================================================
---  MONITOROWANIE GRACZY (bez duplikatow)
+--  MONITOROWANIE GRACZY
 -- ===================================================
 
 local function monitorujGracza(gracz)
@@ -632,114 +598,79 @@ local Window = WindUI:CreateWindow({
 })
 
 -- ===================================================
---  ZAKLADKA: MAIN (pierwsza - otwierana od razu)
+--  ZAKLADKA: MAIN
 -- ===================================================
 
 MainTab = Window:Tab({ Title = "Main", Icon = "home" })
+MainTab:Select()
 
--- == SEKCJA: MOJ PROFIL ==
+-- Sekcja: Mój profil
 local ProfilSekcja = MainTab:Section({
     Title  = "Mój profil",
     Icon   = "user-circle",
     Opened = true,
 })
 
--- Nick i UserID
 local nick    = LocalPlayer.Name
 local display = LocalPlayer.DisplayName
 local userId  = LocalPlayer.UserId
 
-ProfilSekcja:Paragraph({
-    Title   = "Gracz",
-    Content = ("%s (%s)"):format(display ~= nick and (display .. " / " .. nick) or nick, tostring(userId)),
+local profilTekst = (display ~= nick)
+    and (display .. " / @" .. nick)
+    or  ("@" .. nick)
+
+ProfilSekcja:Button({
+    Title  = profilTekst,
+    Desc   = "UserID: " .. tostring(userId),
+    Icon   = "user",
+    Locked = true,
 })
 
--- Avatar / skin (headshot)
-local avatarSekcjaParagraph = ProfilSekcja:Paragraph({
-    Title   = "Skin",
-    Content = "Ladowanie avatara...",
-})
-statAvatarParagraph = avatarSekcjaParagraph
-
+-- Pobranie avatara w tle i wyswietlenie URL w opisie
 task.spawn(function()
-    local avatarUrl, _ = Players:GetUserThumbnailAsync(
-        userId,
-        Enum.ThumbnailType.AvatarBust,
-        Enum.ThumbnailSize.Size100x100
-    )
-    -- Pobierz dodatkowe info przez Roblox API
-    local skinInfo = "Brak danych"
+    local avatarUrl = ""
     pcall(function()
-        local apiUrl = "https://thumbnails.roblox.com/v1/users/avatar-bust?userIds=" .. tostring(userId) .. "&size=100x100&format=Png&isCircular=false"
-        local resp = game:HttpGet(apiUrl)
-        local data = HttpService:JSONDecode(resp)
-        if data and data.data and data.data[1] then
-            skinInfo = "Avatar zaladowany"
-            -- imageUrl = data.data[1].imageUrl -- mozna uzyc w Image
-        end
+        avatarUrl = Players:GetUserThumbnailAsync(
+            userId,
+            Enum.ThumbnailType.AvatarBust,
+            Enum.ThumbnailSize.Size100x100
+        ) or ""
     end)
-    pcall(function()
-        avatarSekcjaParagraph:SetTitle("Skin / Avatar")
-        avatarSekcjaParagraph:SetContent(
-            ("URL: %s"):format(avatarUrl or "brak")
-        )
-    end)
+    ProfilSekcja:Button({
+        Title  = "Avatar URL",
+        Desc   = avatarUrl ~= "" and avatarUrl or "Nie udalo sie pobrac",
+        Icon   = "image",
+        Locked = true,
+    })
 end)
 
 ProfilSekcja:Space()
 
--- == SEKCJA: STATYSTYKI ==
-local StatSekcja = MainTab:Section({
-    Title  = "Statystyki bazy",
-    Icon   = "bar-chart-2",
-    Opened = true,
-})
+-- Sekcja statystyk (budowana dynamicznie)
+-- Najpierw pusta - zostanie wypelniona przez rebuildMainStats() po zaladowaniu configu
 
--- Te przyciski bedziemy aktualizowac pozniej przez zmienne
-local _statBaza = StatSekcja:Button({
-    Title  = "Kont w bazie konfidentow: ladowanie...",
-    Icon   = "database",
-    Locked = true,
-})
-statBazaLabel = _statBaza
-
-local _statSerwer = StatSekcja:Button({
-    Title  = "Konfidentow na tym serwerze: ladowanie...",
-    Icon   = "wifi",
-    Locked = true,
-})
-statSerwerLabel = _statSerwer
-
-StatSekcja:Space()
-
-StatSekcja:Button({
-    Title    = "Odswiez statystyki",
-    Icon     = "refresh-cw",
-    Justify  = "Between",
-    Callback = function()
-        aktualizujStatystykiMain()
-        WindUI:Notify({ Title = "Main", Content = "Statystyki odswieżone!", Icon = "check-circle", Duration = 2 })
-    end,
-})
-
--- == SEKCJA: INFORMACJE O SERWERZE ==
+-- Sekcja: Informacje o serwerze
 local SerwSekcja = MainTab:Section({
     Title  = "Informacje o serwerze",
     Icon   = "server",
     Opened = true,
 })
 
-local jobId  = pobierzJobId()  or "brak"
-local gameId = pobierzGameId() or "brak"
+local jobId  = pobierzJobId()
+local gameId = pobierzGameId()
 
-SerwSekcja:Paragraph({
-    Title   = "Game ID (Place ID)",
-    Content = gameId,
+SerwSekcja:Button({
+    Title  = "Game ID (Place ID)",
+    Desc   = gameId ~= "" and gameId or "brak",
+    Icon   = "hash",
+    Locked = true,
 })
 
-SerwSekcja:Paragraph({
-    Title   = "Job ID (Instance ID)",
-    Content = jobId ~= "" and jobId or "brak",
+SerwSekcja:Button({
+    Title  = "Job ID (Instance ID)",
+    Desc   = jobId ~= "" and jobId or "brak",
+    Icon   = "server",
+    Locked = true,
 })
 
 SerwSekcja:Space()
@@ -751,7 +682,7 @@ SerwSekcja:Button({
     Justify  = "Between",
     Callback = function()
         local id = pobierzGameId()
-        if id then
+        if id ~= "" then
             local ok = kopiujDo(id)
             WindUI:Notify({
                 Title    = "Skopiowano",
@@ -770,16 +701,16 @@ SerwSekcja:Button({
     Justify  = "Between",
     Callback = function()
         local id = pobierzJobId()
-        if id and id ~= "" then
+        if id ~= "" then
             local ok = kopiujDo(id)
             WindUI:Notify({
                 Title    = "Skopiowano",
-                Content  = ok and ("Job ID: " .. id:sub(1, 24) .. "...") or "Blad kopiowania!",
+                Content  = ok and ("Job ID: " .. id:sub(1, 20) .. "...") or "Blad kopiowania!",
                 Icon     = ok and "check-circle" or "alert-circle",
                 Duration = 3,
             })
         else
-            WindUI:Notify({ Title = "Blad", Content = "Nie mozna pobrac Job ID", Icon = "alert-circle", Duration = 3 })
+            WindUI:Notify({ Title = "Blad", Content = "Brak Job ID", Icon = "alert-circle", Duration = 3 })
         end
     end,
 })
@@ -792,7 +723,7 @@ SerwSekcja:Button({
     Callback = function()
         local gid = pobierzGameId()
         local jid = pobierzJobId()
-        if gid and jid and jid ~= "" then
+        if gid ~= "" and jid ~= "" then
             local link = ("roblox://experiences/start?placeId=%s&gameInstanceId=%s"):format(gid, jid)
             local ok = kopiujDo(link)
             WindUI:Notify({
@@ -802,13 +733,10 @@ SerwSekcja:Button({
                 Duration = 3,
             })
         else
-            WindUI:Notify({ Title = "Blad", Content = "Brak Game ID lub Job ID", Icon = "alert-circle", Duration = 3 })
+            WindUI:Notify({ Title = "Blad", Content = "Brak Game/Job ID", Icon = "alert-circle", Duration = 3 })
         end
     end,
 })
-
--- Zaznacz tę zakładkę jako pierwszą (otwórs ją od razu)
-MainTab:Select()
 
 -- ===================================================
 --  ZAKLADKA: LISTA
@@ -897,10 +825,8 @@ KeybindSekcja:Keybind({
     Callback = function(v)
         if not v or v == "" then return end
         currentKeybind = v
-        local ok = pcall(function() Window:SetToggleKey(Enum.KeyCode[v]) end)
-        if ok then
-            WindUI:Notify({ Title = "Keybind", Content = "Klawisz GUI: " .. v, Icon = "keyboard", Duration = 3 })
-        end
+        pcall(function() Window:SetToggleKey(Enum.KeyCode[v]) end)
+        WindUI:Notify({ Title = "Keybind", Content = "Klawisz GUI: " .. v, Icon = "keyboard", Duration = 3 })
     end,
 })
 
@@ -962,7 +888,7 @@ local function inicjuj()
         local config = pobierzKonfiguracje()
         if config then
             local slownik = {}
-            for _, userId2 in ipairs(config.konfidenci or {}) do slownik[userId2] = true end
+            for _, uid in ipairs(config.konfidenci or {}) do slownik[uid] = true end
             currentConfig            = config
             currentConfig.konfidenci = slownik
             currentConfig.ustawienia = currentConfig.ustawienia or {
@@ -973,7 +899,11 @@ local function inicjuj()
         else
             currentConfig = {
                 konfidenci = {},
-                ustawienia = { kolorPodswietlenia = {255, 170, 0}, przezroczystosc = 0.4, tekstNadGlowa = "Konfident" },
+                ustawienia = {
+                    kolorPodswietlenia = {255, 170, 0},
+                    przezroczystosc    = 0.4,
+                    tekstNadGlowa      = "Konfident",
+                },
             }
             warn("[KH] Pusta konfiguracja!")
         end
@@ -981,14 +911,12 @@ local function inicjuj()
         local bazaLiczba = liczbaKonfidentow()
         print(("[KH] Start. Konfidenci w bazie: %d"):format(bazaLiczba))
 
-        -- Dodaj oznaczenia dla graczy juz obecnych
         for _, g in ipairs(Players:GetPlayers()) do
             if g ~= LocalPlayer and czyKonfident(g) and g.Character then
                 dodajOznaczenia(g)
             end
         end
 
-        -- Odswiez UI (statystyki + listy)
         scheduleRebuild()
 
         task.delay(1.5, function()
