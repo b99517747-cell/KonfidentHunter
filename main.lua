@@ -350,10 +350,10 @@ local function rebuildLista()
                 local isSpect = (spectateTarget == gracz)
                 local thumb   = thumbCache[gracz.UserId] or ""
                 konfidenciSection:Button({
-                    Title    = gracz.Name .. (isSpect and "  ▶" or ""),
-                    Desc     = "ID: " .. tostring(gracz.UserId),
-                    Icon     = isSpect and "eye-off" or "eye",
-                    Justify  = "Between",
+                    Title    = gracz.Name,
+                    Desc     = "ID: " .. tostring(gracz.UserId) .. (isSpect and " • Obserwujesz" or ""),
+                    Icon     = "user",
+                    Color    = isSpect and Color3.fromRGB(255, 170, 0) or nil,
                     Callback = function()
                         if spectateTarget == gracz then stopSpectate()
                         else if spectateTarget then stopSpectate() end; spectateGracza(gracz) end
@@ -398,7 +398,6 @@ local function rebuildTeleport()
                     Title    = gracz.Name,
                     Desc     = "ID: " .. tostring(gracz.UserId),
                     Icon     = "map-pin",
-                    Justify  = "Between",
                     Callback = function() teleportDo(gracz) end,
                 })
             end
