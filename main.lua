@@ -349,17 +349,14 @@ local function rebuildLista()
                 local gracz   = g
                 local isSpect = (spectateTarget == gracz)
                 local thumb   = thumbCache[gracz.UserId] or ""
-                konfidenciSection:Toggle({
-                    Title    = gracz.Name,
+                konfidenciSection:Button({
+                    Title    = gracz.Name .. (isSpect and "  ▶" or ""),
                     Desc     = "ID: " .. tostring(gracz.UserId),
-                    Value    = isSpect,
-                    Callback = function(state)
-                        if state then
-                            if spectateTarget then stopSpectate() end
-                            spectateGracza(gracz)
-                        else
-                            stopSpectate()
-                        end
+                    Icon     = isSpect and "eye-off" or "eye",
+                    Justify  = "Between",
+                    Callback = function()
+                        if spectateTarget == gracz then stopSpectate()
+                        else if spectateTarget then stopSpectate() end; spectateGracza(gracz) end
                         lastListaHash = ""; rebuildLista()
                     end,
                 })
@@ -397,13 +394,12 @@ local function rebuildTeleport()
             for _, g in ipairs(filtered) do
                 local gracz = g
                 local thumb = thumbCache[gracz.UserId] or ""
-                teleportListSection:Toggle({
+                teleportListSection:Button({
                     Title    = gracz.Name,
                     Desc     = "ID: " .. tostring(gracz.UserId),
-                    Value    = false,
-                    Callback = function(state)
-                        if state then teleportDo(gracz) end
-                    end,
+                    Icon     = "map-pin",
+                    Justify  = "Between",
+                    Callback = function() teleportDo(gracz) end,
                 })
             end
         end
