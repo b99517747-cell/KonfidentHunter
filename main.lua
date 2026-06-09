@@ -749,9 +749,6 @@ local function inicjuj()
             task.wait(0.5)
             if czyKonfident(gracz) then
                 pokazAlert("Konfident dołączył!", gracz.Name.." wbił na serwer!", Color3.fromRGB(255,60,60))
-                task.delay(1.0, function()
-                    WindUI:Notify({ Title="Konfident!", Content=gracz.Name.." jest na serwerze!", Icon="alert-triangle", Duration=6 })
-                end)
                 if gracz.Character then dodajOznaczenia(gracz) end
             end
              
