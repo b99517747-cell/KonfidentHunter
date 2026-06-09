@@ -497,7 +497,7 @@ local Window = WindUI:CreateWindow({
 --  ZAKŁADKA: MAIN
 -- ===================================================
 
-MainTab = Window:Tab({ Title = "Main", Icon = "home" })
+MainTab = Window:Tab({ Title = "Main", Icon = "info" })
 MainTab:Select()
 
 -- LOGO / BANNER
@@ -587,7 +587,6 @@ local AkcjeSekcja = ListaTab:Section({ Title = "Akcje", Icon = "zap", Opened = t
 AkcjeSekcja:Toggle({
     Title    = "Pokaż oznaczenia",
     Desc     = "Highlight i tekst nad głową konfidentów",
-    Icon     = "eye",
     Value    = true,
     Callback = function(v) pokazOznaczenia = v; odswiezWszystkieOznaczenia() end,
 })
