@@ -1,4 +1,4 @@
-\--[[
+--[[
     Konfident Hunter v5 - WindUI Edition
     Zmiany v5.1:
       - Nowa zakladka "Main" (otwierana jako pierwsza)
@@ -15,9 +15,21 @@ local DOMYSLNY_KLUCZ = "K"
 local DISCORD_URL    = "https://discord.gg/YjTWGZYD"
 -- ========================
 
-local WindUI = loadstring(game:HttpGet(
-    "https://github.com/Footagesus/WindUI/releases/download/1.6.64-fix/main.lua"
-))()
+local _windUISource
+local _windUIUrls = {
+    "https://raw.githubusercontent.com/Footagesus/WindUI/main/dist/main.lua",
+    "https://raw.githubusercontent.com/Footagesus/WindUI/refs/heads/main/dist/main.lua",
+}
+for _, url in ipairs(_windUIUrls) do
+    local ok, result = pcall(function() return game:HttpGet(url) end)
+    if ok and result and #result > 100 then
+        _windUISource = result
+        break
+    end
+end
+assert(_windUISource, "[KH] Nie udalo sie pobrac WindUI! Sprawdz polaczenie.")
+local WindUI = loadstring(_windUISource)()
+assert(WindUI, "[KH] WindUI nie zostalo zaladowane poprawnie!")
 
 local Players      = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
