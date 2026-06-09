@@ -1,12 +1,12 @@
 -- ===== KONFIGURACJA =====
 local REFRESH_TIME   = 60
 local CONFIG_URL     = "https://raw.githubusercontent.com/b99517747-cell/KonfidentHunter/main/config.lua"
-local DOMYSLNY_KLUCZ = "K"
+local DOMYSLNY_KLUCZ = "P"
 local DISCORD_URL    = "https://discord.gg/YjTWGZYD"
 -- ========================
 
 local WindUI      = loadstring(game:HttpGet(
-    "https://raw.githubusercontent.com/Footagesus/WindUI/main/dist/main.lua"
+    "https://github.com/Footagesus/WindUI/releases/download/1.6.64-fix/main.lua"
 ))()
 
 local Players     = game:GetService("Players")
