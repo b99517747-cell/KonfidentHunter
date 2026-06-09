@@ -106,7 +106,7 @@ local function stworzAlertGui()
     alertGui = gui
 end
 
-local AW, AH, AM, AB = 320, 80, 20, 160
+local AW, AH, AM, AB = 320, 80, 20, 20
 
 local function pokazAlert(tytul, tresc, kolor)
     kolor = kolor or Color3.fromRGB(255,170,0)
@@ -480,7 +480,7 @@ end)
 local Window = WindUI:CreateWindow({
     Title         = "KonfidentHunter",
     Icon          = "shield-alert",
-    Author        = "v5.4",
+    Author        = "v1",
     Folder        = "KonfidentHunter",
     NewElements   = true,
     HideSearchBar = true,
