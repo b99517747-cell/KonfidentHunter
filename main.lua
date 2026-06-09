@@ -1,13 +1,3 @@
---[[
-    Konfident Hunter v5.4
-    - User panel (avatar+nick) w lewym dolnym rogu okna przez Window.User
-    - Paragraph z Thumbnail = URL avatara (oficjalne API WindUI)
-    - Paragraph.SetTitle / SetDesc do aktualizacji statystyk
-    - Lista usuwa gracza natychmiast po PlayerRemoving (bez task.wait)
-    - Gracze na liście/teleport z avatarem przez Paragraph+Thumbnail
-    - Sync bazy co 60s
-]]
-
 -- ===== KONFIGURACJA =====
 local REFRESH_TIME   = 60
 local CONFIG_URL     = "https://raw.githubusercontent.com/b99517747-cell/KonfidentHunter/main/config.lua"
