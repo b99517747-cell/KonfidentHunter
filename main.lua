@@ -427,68 +427,62 @@ local function rebuildTeleportSekcje()
     end
 
     local obecni = konfidenciNaSerwerzeLista()
-    local opcje  = {}
-    for _, g in ipairs(obecni) do table.insert(opcje, g.Name) end
 
-    -- Sekcja dropdown
-    teleportDropSection = TeleportTab:Section({ Title = "Teleport z listy", Icon = "list", Opened = true })
+    -- ── Sekcja: Szukaj po nicku ──
+    teleportInputSection = TeleportTab:Section({ Title = "Szukaj konfidenta", Icon = "search", Opened = true })
 
-    if #opcje == 0 then
+    local filterInput = ""
+    teleportInputSection:Input({
+        Title       = "Wpisz nick",
+        Placeholder = "np. bartos_GTKM",
+        Callback    = function(v)
+            filterInput = v
+            -- rebuild sekcji wynikow po wpisaniu
+            rebuildTeleportSekcje()
+        end,
+    })
+
+    -- ── Sekcja: Lista konfidentów (filtrowana) ──
+    teleportDropSection = TeleportTab:Section({
+        Title  = "Konfidenci na serwerze",
+        Icon   = "map-pin",
+        Opened = true,
+    })
+
+    if #obecni == 0 then
         teleportDropSection:Button({ Title = "Brak konfidentów na serwerze", Icon = "user-x", Locked = true })
+        return
+    end
+
+    -- Filtrowanie po nicku jeśli coś wpisano
+    local filtered = {}
+    if filterInput ~= "" then
+        local szukaj = filterInput:lower()
+        for _, g in ipairs(obecni) do
+            if g.Name:lower():find(szukaj, 1, true) then
+                table.insert(filtered, g)
+            end
+        end
     else
-        local wybrany = opcje[1]
-        teleportDropSection:Dropdown({
-            Title    = "Wybierz gracza",
-            Values   = opcje,
-            Value    = 1,
-            Callback = function(v) wybrany = v end,
-        })
-        teleportDropSection:Space()
+        filtered = obecni
+    end
+
+    if #filtered == 0 then
+        teleportDropSection:Button({ Title = "Nie znaleziono: " .. filterInput, Icon = "user-x", Locked = true })
+        return
+    end
+
+    for _, gracz in ipairs(filtered) do
         teleportDropSection:Button({
-            Title    = "Teleportuj →",
-            Icon     = "zap",
-            Color    = Color3.fromRGB(255, 170, 0),
+            Title    = gracz.Name,
+            Desc     = "Kliknij aby teleportować",
+            Icon     = avatarUrl(gracz.UserId),
+            Justify  = "Between",
             Callback = function()
-                for _, g in ipairs(Players:GetPlayers()) do
-                    if g.Name == wybrany then teleportDo(g); return end
-                end
-                WindUI:Notify({ Title = "Teleport", Content = "Nie znaleziono: " .. tostring(wybrany), Duration = 3 })
+                teleportDo(gracz)
             end,
         })
     end
-
-    -- Sekcja input
-    teleportInputSection = TeleportTab:Section({ Title = "Wpisz nazwę gracza", Icon = "keyboard", Opened = true })
-    local wpisana = ""
-    teleportInputSection:Input({
-        Title       = "Nazwa gracza",
-        Placeholder = "np. bartos_GTKM",
-        Callback    = function(v) wpisana = v end,
-    })
-    teleportInputSection:Space()
-    teleportInputSection:Button({
-        Title    = "Teleportuj →",
-        Icon     = "zap",
-        Color    = Color3.fromRGB(255, 170, 0),
-        Callback = function()
-            if wpisana == "" then
-                WindUI:Notify({ Title = "Teleport", Content = "Wpisz nazwę gracza!", Icon = "alert-circle", Duration = 3 })
-                return
-            end
-            local szukaj = wpisana:lower()
-            local cel    = nil
-            for _, g in ipairs(Players:GetPlayers()) do
-                if g.Name:lower() == szukaj then cel = g; break end
-            end
-            if not cel then
-                for _, g in ipairs(Players:GetPlayers()) do
-                    if g.Name:lower():find(szukaj, 1, true) then cel = g; break end
-                end
-            end
-            if cel then teleportDo(cel)
-            else WindUI:Notify({ Title = "Teleport", Content = "Nie znaleziono: " .. wpisana, Icon = "user-x", Duration = 3 }) end
-        end,
-    })
 end
 
 local function rebuildWszystko()
@@ -618,21 +612,10 @@ AkcjeSekcja:Toggle({
 AkcjeSekcja:Space()
 
 AkcjeSekcja:Button({
-    Title    = "Stop Spectate",
-    Icon     = "video-off",
-    Callback = function()
-        stopSpectate()
-        task.wait(0.05)
-        rebuildListaSekcje()
-        WindUI:Notify({ Title = "Spectate", Content = "Zatrzymano obserwowanie.", Icon = "video-off", Duration = 2 })
-    end,
-})
-
-AkcjeSekcja:Space()
-
-AkcjeSekcja:Button({
     Title    = "Odśwież listę",
+    Desc     = "Pobiera aktualną listę konfidentów",
     Icon     = "refresh-cw",
+    Justify  = "Between",
     Callback = function() task.spawn(aktualizujListe) end,
 })
 
@@ -644,6 +627,40 @@ ListaTab:Space()
 -- ══════════════════════════════════════════
 TeleportTab = Window:Tab({ Title = "Teleport", Icon = "map-pin" })
 -- teleportDropSection i teleportInputSection budowane przez rebuildTeleportSekcje()
+
+-- ══════════════════════════════════════════
+--  ZAKŁADKA: DISCORD
+-- ══════════════════════════════════════════
+local DiscordTab = Window:Tab({ Title = "Discord", Icon = "message-circle" })
+
+local DiscordSekcja = DiscordTab:Section({ Title = "Dołącz do nas", Icon = "link", Opened = true })
+
+local DISCORD_URL = "https://discord.gg/YjTWGZYD"
+
+DiscordSekcja:Button({
+    Title    = "Skopiuj link do Discorda",
+    Desc     = DISCORD_URL,
+    Icon     = "copy",
+    Justify  = "Between",
+    Callback = function()
+        local ok = pcall(function() setclipboard(DISCORD_URL) end)
+        if ok then
+            WindUI:Notify({
+                Title    = "Discord",
+                Content  = "Link skopiowany do schowka!",
+                Icon     = "check-circle",
+                Duration = 3,
+            })
+        else
+            WindUI:Notify({
+                Title    = "Discord",
+                Content  = DISCORD_URL,
+                Icon     = "message-circle",
+                Duration = 5,
+            })
+        end
+    end,
+})
 
 -- ══════════════════════════════════════════
 --  ZAKŁADKA: USTAWIENIA
