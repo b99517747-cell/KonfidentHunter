@@ -458,14 +458,6 @@ end
 
 local myNick = LocalPlayer.Name
 local myId   = LocalPlayer.UserId
--- Thumb LocalPlayer pobieramy synchronicznie przed CreateWindow
--- żeby User.Avatar był dostępny od razu
-local myThumb = ""
-pcall(function()
-    myThumb = Players:GetUserThumbnailAsync(
-        myId, Enum.ThumbnailType.AvatarBust, Enum.ThumbnailSize.Size100x100
-    ) or ""
-end)
 
 local Window = WindUI:CreateWindow({
     Title         = "KonfidentHunter",
@@ -479,7 +471,7 @@ local Window = WindUI:CreateWindow({
     -- Avatar + nick w lewym dolnym rogu paska bocznego
     User          = {
         Name   = myNick,
-        Avatar = myThumb ~= "" and myThumb or nil,
+        Avatar = myId,  -- WindUI pobiera avatar po UserId (omija bug z URL)
     },
 })
 
