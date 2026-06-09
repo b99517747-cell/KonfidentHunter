@@ -54,99 +54,125 @@ local function stworzAlertGui()
     alertGui = gui
 end
 
-local ALERT_W      = 320
-local ALERT_H      = 72
-local ALERT_MARGIN = 16
+local ALERT_W      = 300
+local ALERT_H      = 68
+local ALERT_MARGIN = 20   -- margines od prawej/dolu
+local ALERT_BOTTOM = 80   -- dodatkowy offset od dolu (zeby bylo nizej)
 
 local function pokazAlert(tytul, tresc, ikonaTekst, kolorAkcentu)
     kolorAkcentu = kolorAkcentu or Color3.fromRGB(255, 170, 0)
     ikonaTekst   = ikonaTekst   or "!"
     if not alertGui or not alertGui.Parent then stworzAlertGui() end
 
+    -- Pozycja startowa (poza ekranem z prawej) i docelowa
+    local posOff    = -(ALERT_H + ALERT_MARGIN + ALERT_BOTTOM)
+    local startPos  = UDim2.new(1, ALERT_MARGIN,           1, posOff)
+    local targetPos = UDim2.new(1, -(ALERT_W + ALERT_MARGIN), 1, posOff)
+
+    -- Glowna ramka
     local ramka = Instance.new("Frame")
     ramka.Size             = UDim2.new(0, ALERT_W, 0, ALERT_H)
-    ramka.Position         = UDim2.new(1, ALERT_MARGIN, 1, -(ALERT_H + ALERT_MARGIN))
-    ramka.BackgroundColor3 = Color3.fromRGB(20, 20, 24)
+    ramka.Position         = startPos
+    ramka.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
     ramka.BorderSizePixel  = 0
-    ramka.ClipsDescendants = true
+    ramka.ClipsDescendants = false
     ramka.ZIndex           = 10
     ramka.Parent           = alertGui
-    Instance.new("UICorner", ramka).CornerRadius = UDim.new(0, 10)
+    Instance.new("UICorner", ramka).CornerRadius = UDim.new(0, 14)
 
-    local pasek = Instance.new("Frame")
-    pasek.Size             = UDim2.new(0, 4, 1, 0)
-    pasek.BackgroundColor3 = kolorAkcentu
-    pasek.BorderSizePixel  = 0
-    pasek.ZIndex           = 11
-    pasek.Parent           = ramka
-    Instance.new("UICorner", pasek).CornerRadius = UDim.new(0, 4)
-
+    -- Subtelny border
     local stroke = Instance.new("UIStroke")
-    stroke.Color     = Color3.fromRGB(50, 50, 58)
-    stroke.Thickness = 1
-    stroke.Parent    = ramka
+    stroke.Color             = Color3.fromRGB(55, 55, 65)
+    stroke.Thickness         = 1
+    stroke.ApplyStrokeMode   = Enum.ApplyStrokeMode.Border
+    stroke.Parent            = ramka
+
+    -- Kolorowe kolo z ikona (zamiast lewego paska)
+    local ikonaBg = Instance.new("Frame")
+    ikonaBg.Size             = UDim2.new(0, 36, 0, 36)
+    ikonaBg.Position         = UDim2.new(0, 14, 0.5, -18)
+    ikonaBg.BackgroundColor3 = Color3.fromRGB(
+        math.clamp(kolorAkcentu.R * 255 * 0.18, 0, 255),
+        math.clamp(kolorAkcentu.G * 255 * 0.18, 0, 255),
+        math.clamp(kolorAkcentu.B * 255 * 0.18, 0, 255)
+    )
+    ikonaBg.BorderSizePixel  = 0
+    ikonaBg.ZIndex           = 11
+    ikonaBg.Parent           = ramka
+    Instance.new("UICorner", ikonaBg).CornerRadius = UDim.new(1, 0)
 
     local ikona = Instance.new("TextLabel")
-    ikona.Size                   = UDim2.new(0, 36, 0, 36)
-    ikona.Position               = UDim2.new(0, 16, 0.5, -18)
+    ikona.Size                   = UDim2.new(1, 0, 1, 0)
     ikona.BackgroundTransparency = 1
     ikona.Text                   = ikonaTekst
-    ikona.TextSize               = 22
+    ikona.TextSize               = 16
     ikona.Font                   = Enum.Font.GothamBold
     ikona.TextColor3             = kolorAkcentu
-    ikona.ZIndex                 = 11
-    ikona.Parent                 = ramka
+    ikona.TextXAlignment         = Enum.TextXAlignment.Center
+    ikona.TextYAlignment         = Enum.TextYAlignment.Center
+    ikona.ZIndex                 = 12
+    ikona.Parent                 = ikonaBg
 
+    -- Tytul
     local tytulLabel = Instance.new("TextLabel")
-    tytulLabel.Size                   = UDim2.new(1, -64, 0, 20)
-    tytulLabel.Position               = UDim2.new(0, 58, 0, 12)
+    tytulLabel.Size                   = UDim2.new(1, -62, 0, 18)
+    tytulLabel.Position               = UDim2.new(0, 58, 0, 13)
     tytulLabel.BackgroundTransparency = 1
     tytulLabel.Text                   = tytul
-    tytulLabel.TextColor3             = Color3.fromRGB(240, 240, 240)
+    tytulLabel.TextColor3             = Color3.fromRGB(235, 235, 235)
     tytulLabel.Font                   = Enum.Font.GothamBold
-    tytulLabel.TextSize               = 13
+    tytulLabel.TextSize               = 12
     tytulLabel.TextXAlignment         = Enum.TextXAlignment.Left
     tytulLabel.TextTruncate           = Enum.TextTruncate.AtEnd
     tytulLabel.ZIndex                 = 11
     tytulLabel.Parent                 = ramka
 
+    -- Tresc
     local trescLabel = Instance.new("TextLabel")
-    trescLabel.Size                   = UDim2.new(1, -64, 0, 30)
-    trescLabel.Position               = UDim2.new(0, 58, 0, 32)
+    trescLabel.Size                   = UDim2.new(1, -62, 0, 26)
+    trescLabel.Position               = UDim2.new(0, 58, 0, 31)
     trescLabel.BackgroundTransparency = 1
     trescLabel.Text                   = tresc
-    trescLabel.TextColor3             = Color3.fromRGB(175, 175, 190)
+    trescLabel.TextColor3             = Color3.fromRGB(155, 155, 170)
     trescLabel.Font                   = Enum.Font.Gotham
-    trescLabel.TextSize               = 11
+    trescLabel.TextSize               = 10
     trescLabel.TextXAlignment         = Enum.TextXAlignment.Left
     trescLabel.TextWrapped            = true
     trescLabel.ZIndex                 = 11
     trescLabel.Parent                 = ramka
 
+    -- Pasek postepu (na dole, bez rogów)
+    local progressBg = Instance.new("Frame")
+    progressBg.Size             = UDim2.new(1, 0, 0, 2)
+    progressBg.Position         = UDim2.new(0, 0, 1, -2)
+    progressBg.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+    progressBg.BorderSizePixel  = 0
+    progressBg.ZIndex           = 11
+    progressBg.Parent           = ramka
+
     local progress = Instance.new("Frame")
-    progress.Size             = UDim2.new(1, 0, 0, 3)
-    progress.Position         = UDim2.new(0, 0, 1, -3)
+    progress.Size             = UDim2.new(1, 0, 1, 0)
     progress.BackgroundColor3 = kolorAkcentu
     progress.BorderSizePixel  = 0
     progress.ZIndex           = 12
-    progress.Parent           = ramka
+    progress.Parent           = progressBg
 
-    local wjazdPos = UDim2.new(1, -(ALERT_W + ALERT_MARGIN), 1, -(ALERT_H + ALERT_MARGIN))
+    -- Animacja wjazdu
+    local CZAS = 4
     local tweenIn = TweenService:Create(ramka,
-        TweenInfo.new(0.35, Enum.EasingStyle.Quart, Enum.EasingDirection.Out),
-        { Position = wjazdPos })
+        TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+        { Position = targetPos })
     tweenIn:Play()
 
-    local CZAS = 4
     local tweenProg = TweenService:Create(progress,
         TweenInfo.new(CZAS, Enum.EasingStyle.Linear),
-        { Size = UDim2.new(0, 0, 0, 3) })
+        { Size = UDim2.new(0, 0, 1, 0) })
     tweenIn.Completed:Connect(function() tweenProg:Play() end)
 
     task.delay(CZAS + 0.3, function()
         local tweenOut = TweenService:Create(ramka,
-            TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.In),
-            { Position = UDim2.new(1, ALERT_MARGIN, 1, -(ALERT_H + ALERT_MARGIN)) })
+            TweenInfo.new(0.25, Enum.EasingStyle.Quart, Enum.EasingDirection.In),
+            { Position = startPos })
         tweenOut:Play()
         tweenOut.Completed:Connect(function() pcall(function() ramka:Destroy() end) end)
     end)
