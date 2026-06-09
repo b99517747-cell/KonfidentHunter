@@ -1,8 +1,8 @@
 -- ===== GUARD: zapobiega powielaniu GUI =====
 if _G.KonfidentHunter then
-    pcall(function() _G.KonfidentHunter:Destroy() end)
-    _G.KonfidentHunter = nil
+    return  -- już działa, nie rób nic
 end
+_G.KonfidentHunter = true
 -- ============================================
 
 -- ===== KONFIGURACJA =====
@@ -475,8 +475,6 @@ local Window = WindUI:CreateWindow({
     ToggleKey     = Enum.KeyCode[DOMYSLNY_KLUCZ],
     Topbar        = { Height = 44, ButtonsType = "Mac" },
 })
-_G.KonfidentHunter = Window  -- rejestruj instancję do późniejszego niszczenia
-
 -- ===================================================
 --  ZAKŁADKA: MAIN
 -- ===================================================
