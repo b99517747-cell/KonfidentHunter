@@ -485,7 +485,7 @@ MainTab:Image({
 MainTab:Space()
 
 -- SEKCJA: Statystyki (tworzona raz, nigdy nie niszczona)
-local StatSekcja = MainTab:Section({ Title = "Statystyki", Icon = "chart-pie", Opened = true })
+local StatSekcja = MainTab:Section({ Title = "Statystyki", Icon = "server", Opened = true })
 
 statBazaEl = StatSekcja:Paragraph({
     Title = "Kont w bazie konfidentów: 0",
