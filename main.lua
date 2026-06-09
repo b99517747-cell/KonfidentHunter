@@ -349,26 +349,22 @@ local function rebuildLista()
                 local gracz   = g
                 local isSpect = (spectateTarget == gracz)
                 local thumb   = thumbCache[gracz.UserId] or ""
-                -- Paragraph z avatarem po lewej + przyciski spectate
-                konfidenciSection:Paragraph({
-                    Title     = gracz.Name .. (isSpect and "  ▶ obserwujesz" or ""),
-                    Desc      = "ID: " .. tostring(gracz.UserId),
-                    Thumbnail = thumb ~= "" and thumb or nil,
-                    ThumbnailSize = 36,
-                    Color     = isSpect and Color3.fromRGB(255,170,0) or nil,
-                    Buttons   = {
-                        {
-                            Title    = isSpect and "Stop" or "Spectate",
-                            Icon     = isSpect and "eye-off" or "eye",
-                            Callback = function()
-                                if spectateTarget == gracz then stopSpectate()
-                                else if spectateTarget then stopSpectate() end; spectateGracza(gracz) end
-                                lastListaHash = ""; rebuildLista()
-                            end,
-                        },
-                    },
+                -- Button: avatar jako Icon po lewej, nick jako Title, ID jako Desc
+                -- Cały button klikalny = spectate/stop
+                konfidenciSection:Button({
+                    Title    = gracz.Name .. (isSpect and "  ▶ obserwujesz" or ""),
+                    Desc     = "ID: " .. tostring(gracz.UserId),
+                    Icon     = thumb ~= "" and thumb or "user",
+                    IconAlign = "Left",
+                    Justify  = "Between",
+                    Color    = isSpect and Color3.fromRGB(255,170,0) or nil,
+                    Callback = function()
+                        if spectateTarget == gracz then stopSpectate()
+                        else if spectateTarget then stopSpectate() end; spectateGracza(gracz) end
+                        lastListaHash = ""; rebuildLista()
+                    end,
                 })
-                -- Thumb w tle jeśli brak
+                -- Załaduj thumb asynchronicznie jeśli jeszcze nie ma
                 if thumb == "" then
                     task.spawn(function()
                         local url = getThumb(gracz.UserId)
@@ -409,18 +405,13 @@ local function rebuildTeleport()
             for _, g in ipairs(filtered) do
                 local gracz = g
                 local thumb = thumbCache[gracz.UserId] or ""
-                teleportListSection:Paragraph({
-                    Title     = gracz.Name,
-                    Desc      = "ID: " .. tostring(gracz.UserId),
-                    Thumbnail = thumb ~= "" and thumb or nil,
-                    ThumbnailSize = 36,
-                    Buttons   = {
-                        {
-                            Title    = "Teleport",
-                            Icon     = "map-pin",
-                            Callback = function() teleportDo(gracz) end,
-                        },
-                    },
+                teleportListSection:Button({
+                    Title    = gracz.Name,
+                    Desc     = "ID: " .. tostring(gracz.UserId),
+                    Icon     = thumb ~= "" and thumb or "user",
+                    IconAlign = "Left",
+                    Justify  = "Between",
+                    Callback = function() teleportDo(gracz) end,
                 })
                 if thumb == "" then
                     task.spawn(function()
@@ -537,6 +528,14 @@ local Window = WindUI:CreateWindow({
 
 MainTab = Window:Tab({ Title = "Main", Icon = "home" })
 MainTab:Select()
+
+-- LOGO / BANNER
+MainTab:Image({
+    Image       = "https://raw.githubusercontent.com/b99517747-cell/KonfidentHunter/main/banner.png",
+    AspectRatio = "16:9",
+    Radius      = 12,
+})
+MainTab:Space()
 
 -- SEKCJA: Statystyki (tworzona raz, nigdy nie niszczona)
 local StatSekcja = MainTab:Section({ Title = "Statystyki", Icon = "bar-chart-2", Opened = true })
