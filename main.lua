@@ -39,6 +39,7 @@ local kartyRefs       = {}
 local teleportDropSection  = nil
 local teleportInputSection = nil
 local konfidenciSection    = nil
+local teleportFilter       = ""   -- trwały filtr - nie resetuje się przy rebuild
 
 -- ═══════════════════════════════════════════
 --  SYSTEM ALERTÓW (prawy dolny róg)
@@ -417,32 +418,65 @@ end
 
 local function rebuildTeleportSekcje()
     if not TeleportTab then return end
+
+    -- ── Sekcja: Szukaj po nicku — tworzona tylko raz ──
+    if not teleportInputSection then
+        teleportInputSection = TeleportTab:Section({ Title = "Szukaj konfidenta", Icon = "search", Opened = true })
+        teleportInputSection:Input({
+            Title       = "Wpisz nick",
+            Placeholder = "np. bartos_GTKM",
+            Callback    = function(v)
+                teleportFilter = v or ""
+                -- Przebuduj tylko sekcję wyników, nie Input
+                if teleportDropSection then
+                    pcall(function() teleportDropSection:Destroy() end)
+                    teleportDropSection = nil
+                end
+                local obecni2 = konfidenciNaSerwerzeLista()
+                teleportDropSection = TeleportTab:Section({
+                    Title  = "Konfidenci na serwerze",
+                    Icon   = "map-pin",
+                    Opened = true,
+                })
+                if #obecni2 == 0 then
+                    teleportDropSection:Button({ Title = "Brak konfidentów na serwerze", Icon = "user-x", Locked = true })
+                    return
+                end
+                local filtered2 = {}
+                if teleportFilter ~= "" then
+                    local szukaj = teleportFilter:lower()
+                    for _, g in ipairs(obecni2) do
+                        if g.Name:lower():find(szukaj, 1, true) then
+                            table.insert(filtered2, g)
+                        end
+                    end
+                else
+                    filtered2 = obecni2
+                end
+                if #filtered2 == 0 then
+                    teleportDropSection:Button({ Title = "Nie znaleziono: " .. teleportFilter, Icon = "user-x", Locked = true })
+                    return
+                end
+                for _, gracz in ipairs(filtered2) do
+                    teleportDropSection:Button({
+                        Title    = gracz.Name,
+                        Desc     = "Kliknij aby teleportować",
+                        Icon     = avatarUrl(gracz.UserId),
+                        Justify  = "Between",
+                        Callback = function() teleportDo(gracz) end,
+                    })
+                end
+            end,
+        })
+    end
+
+    -- ── Sekcja: Lista konfidentów (odbudowywana przy refresh) ──
     if teleportDropSection then
         pcall(function() teleportDropSection:Destroy() end)
         teleportDropSection = nil
     end
-    if teleportInputSection then
-        pcall(function() teleportInputSection:Destroy() end)
-        teleportInputSection = nil
-    end
 
     local obecni = konfidenciNaSerwerzeLista()
-
-    -- ── Sekcja: Szukaj po nicku ──
-    teleportInputSection = TeleportTab:Section({ Title = "Szukaj konfidenta", Icon = "search", Opened = true })
-
-    local filterInput = ""
-    teleportInputSection:Input({
-        Title       = "Wpisz nick",
-        Placeholder = "np. bartos_GTKM",
-        Callback    = function(v)
-            filterInput = v
-            -- rebuild sekcji wynikow po wpisaniu
-            rebuildTeleportSekcje()
-        end,
-    })
-
-    -- ── Sekcja: Lista konfidentów (filtrowana) ──
     teleportDropSection = TeleportTab:Section({
         Title  = "Konfidenci na serwerze",
         Icon   = "map-pin",
@@ -454,10 +488,9 @@ local function rebuildTeleportSekcje()
         return
     end
 
-    -- Filtrowanie po nicku jeśli coś wpisano
     local filtered = {}
-    if filterInput ~= "" then
-        local szukaj = filterInput:lower()
+    if teleportFilter ~= "" then
+        local szukaj = teleportFilter:lower()
         for _, g in ipairs(obecni) do
             if g.Name:lower():find(szukaj, 1, true) then
                 table.insert(filtered, g)
@@ -468,7 +501,7 @@ local function rebuildTeleportSekcje()
     end
 
     if #filtered == 0 then
-        teleportDropSection:Button({ Title = "Nie znaleziono: " .. filterInput, Icon = "user-x", Locked = true })
+        teleportDropSection:Button({ Title = "Nie znaleziono: " .. teleportFilter, Icon = "user-x", Locked = true })
         return
     end
 
@@ -478,9 +511,7 @@ local function rebuildTeleportSekcje()
             Desc     = "Kliknij aby teleportować",
             Icon     = avatarUrl(gracz.UserId),
             Justify  = "Between",
-            Callback = function()
-                teleportDo(gracz)
-            end,
+            Callback = function() teleportDo(gracz) end,
         })
     end
 end
