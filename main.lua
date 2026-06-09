@@ -1,120 +1,91 @@
 --[[
     Konfident Hunter v5 - WindUI Edition
-    
-    Nowe w v5:
-    - Keybind do otwierania/zamykania GUI (w Ustawienia)
-    - Własny alert GUI (prawy dolny róg) - toast-style
-      • przy starcie: "X konfidentów na serwerze"
-      • gdy konfident wchodzi: "⚠ [nick] wbił na serwer!"
-    - Wszystko wcześniejsze z v4
 ]]
 
 -- ===== KONFIGURACJA =====
-local REFRESH_TIME = 5
-local CONFIG_URL   = "https://raw.githubusercontent.com/b99517747-cell/KonfidentHunter/main/config.lua"
-local DOMYSLNY_KLUCZ = "K"  -- domyślny keybind do otwierania GUI
+local REFRESH_TIME   = 30
+local CONFIG_URL     = "https://raw.githubusercontent.com/b99517747-cell/KonfidentHunter/main/config.lua"
+local DOMYSLNY_KLUCZ = "K"
+local DISCORD_URL    = "https://discord.gg/YjTWGZYD"
 -- ========================
 
 local WindUI = loadstring(game:HttpGet(
     "https://raw.githubusercontent.com/Footagesus/WindUI/main/dist/main.lua"
 ))()
 
-local Players         = game:GetService("Players")
-local TweenService    = game:GetService("TweenService")
-local UserInputService = game:GetService("UserInputService")
-local LocalPlayer     = Players.LocalPlayer
-local Camera          = workspace.CurrentCamera
+local Players      = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local LocalPlayer  = Players.LocalPlayer
+local Camera       = workspace.CurrentCamera
 
 -- ===== STAN GLOBALNY =====
 local currentConfig   = { konfidenci = {}, ustawienia = {} }
 local activeMarkers   = {}
 local spectateTarget  = nil
 local pokazOznaczenia = true
-local currentKeybind  = DOMYSLNY_KLUCZ  -- aktualny klawisz (string)
+local currentKeybind  = DOMYSLNY_KLUCZ
+local monitorowani    = {}
+local rebuildPending  = false
 
-local ListaTab        = nil
-local TeleportTab     = nil
-local kartyRefs       = {}
+local ListaTab            = nil
+local TeleportTab         = nil
+local konfidenciSection   = nil
+local teleportListSection = nil
+local teleportFilter      = ""
 
-local teleportDropSection  = nil
-local teleportInputSection = nil
-local konfidenciSection    = nil
-local teleportFilter       = ""   -- trwały filtr - nie resetuje się przy rebuild
+-- ===================================================
+--  SYSTEM ALERTOW (prawy dolny rog)
+-- ===================================================
 
--- ═══════════════════════════════════════════
---  SYSTEM ALERTÓW (prawy dolny róg)
--- ═══════════════════════════════════════════
-
-local alertGui    = nil
-local alertQueue  = {}  -- kolejka oczekujących alertów
-local alertActive = false
+local alertGui = nil
 
 local function stworzAlertGui()
-    -- Usuń stary jeśli istnieje
     if alertGui then pcall(function() alertGui:Destroy() end) end
-
     local gui = Instance.new("ScreenGui")
-    gui.Name            = "KH_AlertGui"
-    gui.ResetOnSpawn    = false
-    gui.DisplayOrder    = 999
-    gui.ZIndexBehavior  = Enum.ZIndexBehavior.Sibling
-
-    -- Próbuj gethui(), fallback CoreGui, fallback PlayerGui
+    gui.Name           = "KH_AlertGui"
+    gui.ResetOnSpawn   = false
+    gui.DisplayOrder   = 999
+    gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     local ok = pcall(function() gui.Parent = gethui() end)
     if not ok then
         ok = pcall(function() gui.Parent = game:GetService("CoreGui") end)
         if not ok then gui.Parent = LocalPlayer.PlayerGui end
     end
-
     alertGui = gui
 end
 
 local ALERT_W      = 320
 local ALERT_H      = 72
-local ALERT_PAD    = 12
-local ALERT_MARGIN = 16  -- margines od krawędzi ekranu
+local ALERT_MARGIN = 16
 
 local function pokazAlert(tytul, tresc, ikonaTekst, kolorAkcentu)
     kolorAkcentu = kolorAkcentu or Color3.fromRGB(255, 170, 0)
-    ikonaTekst   = ikonaTekst   or "⚠"
-
+    ikonaTekst   = ikonaTekst   or "!"
     if not alertGui or not alertGui.Parent then stworzAlertGui() end
 
-    -- Ramka alertu
     local ramka = Instance.new("Frame")
-    ramka.Name              = "Alert"
-    ramka.Size              = UDim2.new(0, ALERT_W, 0, ALERT_H)
-    -- start poza ekranem (z prawej)
-    ramka.Position          = UDim2.new(1, ALERT_MARGIN, 1, -(ALERT_H + ALERT_MARGIN))
-    ramka.BackgroundColor3  = Color3.fromRGB(20, 20, 24)
-    ramka.BorderSizePixel   = 0
-    ramka.ClipsDescendants  = true
-    ramka.ZIndex            = 10
-    ramka.Parent            = alertGui
+    ramka.Size             = UDim2.new(0, ALERT_W, 0, ALERT_H)
+    ramka.Position         = UDim2.new(1, ALERT_MARGIN, 1, -(ALERT_H + ALERT_MARGIN))
+    ramka.BackgroundColor3 = Color3.fromRGB(20, 20, 24)
+    ramka.BorderSizePixel  = 0
+    ramka.ClipsDescendants = true
+    ramka.ZIndex           = 10
+    ramka.Parent           = alertGui
+    Instance.new("UICorner", ramka).CornerRadius = UDim.new(0, 10)
 
-    -- Zaokrąglenie
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 10)
-    corner.Parent       = ramka
-
-    -- Lewa kolorowa kreska akcentu
     local pasek = Instance.new("Frame")
-    pasek.Name             = "Akcent"
     pasek.Size             = UDim2.new(0, 4, 1, 0)
-    pasek.Position         = UDim2.new(0, 0, 0, 0)
     pasek.BackgroundColor3 = kolorAkcentu
     pasek.BorderSizePixel  = 0
     pasek.ZIndex           = 11
     pasek.Parent           = ramka
     Instance.new("UICorner", pasek).CornerRadius = UDim.new(0, 4)
 
-    -- Obramowanie
     local stroke = Instance.new("UIStroke")
     stroke.Color     = Color3.fromRGB(50, 50, 58)
     stroke.Thickness = 1
     stroke.Parent    = ramka
 
-    -- Ikona/emoji
     local ikona = Instance.new("TextLabel")
     ikona.Size                   = UDim2.new(0, 36, 0, 36)
     ikona.Position               = UDim2.new(0, 16, 0.5, -18)
@@ -126,7 +97,6 @@ local function pokazAlert(tytul, tresc, ikonaTekst, kolorAkcentu)
     ikona.ZIndex                 = 11
     ikona.Parent                 = ramka
 
-    -- Tytuł
     local tytulLabel = Instance.new("TextLabel")
     tytulLabel.Size                   = UDim2.new(1, -64, 0, 20)
     tytulLabel.Position               = UDim2.new(0, 58, 0, 12)
@@ -140,7 +110,6 @@ local function pokazAlert(tytul, tresc, ikonaTekst, kolorAkcentu)
     tytulLabel.ZIndex                 = 11
     tytulLabel.Parent                 = ramka
 
-    -- Treść
     local trescLabel = Instance.new("TextLabel")
     trescLabel.Size                   = UDim2.new(1, -64, 0, 30)
     trescLabel.Position               = UDim2.new(0, 58, 0, 32)
@@ -154,9 +123,7 @@ local function pokazAlert(tytul, tresc, ikonaTekst, kolorAkcentu)
     trescLabel.ZIndex                 = 11
     trescLabel.Parent                 = ramka
 
-    -- Pasek postępu (dolny)
     local progress = Instance.new("Frame")
-    progress.Name             = "Progress"
     progress.Size             = UDim2.new(1, 0, 0, 3)
     progress.Position         = UDim2.new(0, 0, 1, -3)
     progress.BackgroundColor3 = kolorAkcentu
@@ -164,42 +131,30 @@ local function pokazAlert(tytul, tresc, ikonaTekst, kolorAkcentu)
     progress.ZIndex           = 12
     progress.Parent           = ramka
 
-    -- Animacja: wjazd z prawej
-    local targetX = 1 - (ALERT_W / workspace.CurrentCamera.ViewportSize.X) - (ALERT_MARGIN / workspace.CurrentCamera.ViewportSize.X)
-    -- Uproszczone: offset od prawej
     local wjazdPos = UDim2.new(1, -(ALERT_W + ALERT_MARGIN), 1, -(ALERT_H + ALERT_MARGIN))
-    ramka.Position = UDim2.new(1, ALERT_MARGIN, 1, -(ALERT_H + ALERT_MARGIN))
-
-    local tweenIn = TweenService:Create(ramka, TweenInfo.new(0.35, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
-        Position = wjazdPos
-    })
+    local tweenIn = TweenService:Create(ramka,
+        TweenInfo.new(0.35, Enum.EasingStyle.Quart, Enum.EasingDirection.Out),
+        { Position = wjazdPos })
     tweenIn:Play()
 
-    -- Animacja paska postępu (4 sekundy)
-    local CZAS_WYSWIETLANIA = 4
-    local tweenProgress = TweenService:Create(progress, TweenInfo.new(CZAS_WYSWIETLANIA, Enum.EasingStyle.Linear), {
-        Size = UDim2.new(0, 0, 0, 3)
-    })
+    local CZAS = 4
+    local tweenProg = TweenService:Create(progress,
+        TweenInfo.new(CZAS, Enum.EasingStyle.Linear),
+        { Size = UDim2.new(0, 0, 0, 3) })
+    tweenIn.Completed:Connect(function() tweenProg:Play() end)
 
-    tweenIn.Completed:Connect(function()
-        tweenProgress:Play()
-    end)
-
-    -- Wyjazd po czasie
-    task.delay(CZAS_WYSWIETLANIA + 0.3, function()
-        local tweenOut = TweenService:Create(ramka, TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.In), {
-            Position = UDim2.new(1, ALERT_MARGIN, 1, -(ALERT_H + ALERT_MARGIN))
-        })
+    task.delay(CZAS + 0.3, function()
+        local tweenOut = TweenService:Create(ramka,
+            TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.In),
+            { Position = UDim2.new(1, ALERT_MARGIN, 1, -(ALERT_H + ALERT_MARGIN)) })
         tweenOut:Play()
-        tweenOut.Completed:Connect(function()
-            pcall(function() ramka:Destroy() end)
-        end)
+        tweenOut.Completed:Connect(function() pcall(function() ramka:Destroy() end) end)
     end)
 end
 
--- ═══════════════════════════════════════════
+-- ===================================================
 --  HELPERS
--- ═══════════════════════════════════════════
+-- ===================================================
 
 local function getUst()
     return currentConfig.ustawienia or {
@@ -211,10 +166,6 @@ end
 
 local function czyKonfident(gracz)
     return currentConfig.konfidenci and currentConfig.konfidenci[gracz.UserId] == true
-end
-
-local function avatarUrl(userId)
-    return ("https://www.roblox.com/headshot-thumbnail/image?userId=%d&width=150&height=150&format=png"):format(userId)
 end
 
 local function liczbaKonfidentow()
@@ -233,9 +184,9 @@ local function konfidenciNaSerwerzeLista()
     return lista
 end
 
--- ═══════════════════════════════════════════
---  OZNACZENIA (highlight + billboard)
--- ═══════════════════════════════════════════
+-- ===================================================
+--  OZNACZENIA
+-- ===================================================
 
 local function usunOznaczenia(gracz)
     local f = activeMarkers[gracz]
@@ -269,7 +220,6 @@ local function dodajOznaczenia(gracz)
     local k   = ust.kolorPodswietlenia or {255, 170, 0}
 
     local hl = Instance.new("Highlight")
-    hl.Name                = "Podswietlenie"
     hl.FillColor           = Color3.fromRGB(k[1], k[2], k[3])
     hl.FillTransparency    = ust.przezroczystosc or 0.4
     hl.OutlineColor        = Color3.fromRGB(k[1], k[2], k[3])
@@ -313,15 +263,15 @@ local function odswiezWszystkieOznaczenia()
     end
 end
 
--- ═══════════════════════════════════════════
+-- ===================================================
 --  SPECTATE
--- ═══════════════════════════════════════════
+-- ===================================================
 
 local function spectateGracza(gracz)
     if not gracz or not gracz.Character then return end
     local h = gracz.Character:FindFirstChild("Humanoid")
     if not h then return end
-    spectateTarget = gracz
+    spectateTarget       = gracz
     Camera.CameraType    = Enum.CameraType.Custom
     Camera.CameraSubject = h
 end
@@ -338,9 +288,9 @@ local function stopSpectate()
     end
 end
 
--- ═══════════════════════════════════════════
+-- ===================================================
 --  TELEPORT
--- ═══════════════════════════════════════════
+-- ===================================================
 
 local function teleportDo(gracz)
     if not gracz or not gracz.Character then
@@ -356,9 +306,9 @@ local function teleportDo(gracz)
     WindUI:Notify({ Title = "Teleport", Content = "Teleportowano do " .. gracz.Name, Icon = "map-pin", Duration = 3 })
 end
 
--- ═══════════════════════════════════════════
+-- ===================================================
 --  POBIERANIE CONFIGU
--- ═══════════════════════════════════════════
+-- ===================================================
 
 local function pobierzKonfiguracje()
     local ok, result = pcall(function() return game:HttpGet(CONFIG_URL) end)
@@ -370,243 +320,175 @@ local function pobierzKonfiguracje()
     return config
 end
 
--- ═══════════════════════════════════════════
---  REBUILD LISTY I TELEPORTU
--- ═══════════════════════════════════════════
+-- ===================================================
+--  THROTTLED REBUILD - max 1 rebuild na klatke
+-- ===================================================
 
-local function rebuildListaSekcje()
-    if not ListaTab then return end
-    if konfidenciSection then
-        pcall(function() konfidenciSection:Destroy() end)
-        konfidenciSection = nil
-    end
-    kartyRefs = {}
+local function scheduleRebuild()
+    if rebuildPending then return end
+    rebuildPending = true
+    task.defer(function()
+        rebuildPending = false
 
-    local obecni = konfidenciNaSerwerzeLista()
-
-    konfidenciSection = ListaTab:Section({
-        Title  = ("Konfidenci na serwerze (%d)"):format(#obecni),
-        Icon   = "users",
-        Opened = true,
-    })
-
-    if #obecni == 0 then
-        konfidenciSection:Button({ Title = "Brak konfidentów na serwerze", Icon = "user-x", Locked = true })
-        return
-    end
-
-    for _, gracz in ipairs(obecni) do
-        local isSpect = (spectateTarget == gracz)
-        konfidenciSection:Button({
-            Title    = gracz.Name,
-            Desc     = isSpect and "👁  Obserwujesz — kliknij aby stop" or "Kliknij aby spectate",
-            Icon     = avatarUrl(gracz.UserId),
-            Color    = isSpect and Color3.fromRGB(255, 170, 0) or nil,
-            Callback = function()
-                if spectateTarget == gracz then
-                    stopSpectate()
-                else
-                    if spectateTarget then stopSpectate() end
-                    spectateGracza(gracz)
-                end
-                task.wait(0.05)
-                rebuildListaSekcje()
-            end,
-        })
-    end
-end
-
-local function rebuildTeleportSekcje()
-    if not TeleportTab then return end
-
-    -- ── Sekcja: Szukaj po nicku — tworzona tylko raz ──
-    if not teleportInputSection then
-        teleportInputSection = TeleportTab:Section({ Title = "Szukaj konfidenta", Icon = "search", Opened = true })
-        teleportInputSection:Input({
-            Title       = "Wpisz nick",
-            Placeholder = "np. bartos_GTKM",
-            Callback    = function(v)
-                teleportFilter = v or ""
-                -- Przebuduj tylko sekcję wyników, nie Input
-                if teleportDropSection then
-                    pcall(function() teleportDropSection:Destroy() end)
-                    teleportDropSection = nil
-                end
-                local obecni2 = konfidenciNaSerwerzeLista()
-                teleportDropSection = TeleportTab:Section({
-                    Title  = "Konfidenci na serwerze",
-                    Icon   = "map-pin",
-                    Opened = true,
-                })
-                if #obecni2 == 0 then
-                    teleportDropSection:Button({ Title = "Brak konfidentów na serwerze", Icon = "user-x", Locked = true })
-                    return
-                end
-                local filtered2 = {}
-                if teleportFilter ~= "" then
-                    local szukaj = teleportFilter:lower()
-                    for _, g in ipairs(obecni2) do
-                        if g.Name:lower():find(szukaj, 1, true) then
-                            table.insert(filtered2, g)
-                        end
-                    end
-                else
-                    filtered2 = obecni2
-                end
-                if #filtered2 == 0 then
-                    teleportDropSection:Button({ Title = "Nie znaleziono: " .. teleportFilter, Icon = "user-x", Locked = true })
-                    return
-                end
-                for _, gracz in ipairs(filtered2) do
-                    teleportDropSection:Button({
-                        Title    = gracz.Name,
-                        Desc     = "Kliknij aby teleportować",
-                        Icon     = avatarUrl(gracz.UserId),
-                        Justify  = "Between",
-                        Callback = function() teleportDo(gracz) end,
+        -- Rebuild: Lista
+        if ListaTab then
+            if konfidenciSection then
+                pcall(function() konfidenciSection:Destroy() end)
+                konfidenciSection = nil
+            end
+            local obecni = konfidenciNaSerwerzeLista()
+            konfidenciSection = ListaTab:Section({
+                Title  = ("Konfidenci na serwerze (%d)"):format(#obecni),
+                Icon   = "users",
+                Opened = true,
+            })
+            if #obecni == 0 then
+                konfidenciSection:Button({ Title = "Brak konfidentow na serwerze", Icon = "user-x", Locked = true })
+            else
+                for _, gracz in ipairs(obecni) do
+                    local g = gracz
+                    local isSpect = (spectateTarget == g)
+                    konfidenciSection:Button({
+                        Title    = g.Name,
+                        Desc     = isSpect and "Obserwujesz - kliknij aby stop" or "Kliknij aby spectate",
+                        Icon     = "user",
+                        Color    = isSpect and Color3.fromRGB(255, 170, 0) or nil,
+                        Callback = function()
+                            if spectateTarget == g then
+                                stopSpectate()
+                            else
+                                if spectateTarget then stopSpectate() end
+                                spectateGracza(g)
+                            end
+                            scheduleRebuild()
+                        end,
                     })
                 end
-            end,
-        })
-    end
-
-    -- ── Sekcja: Lista konfidentów (odbudowywana przy refresh) ──
-    if teleportDropSection then
-        pcall(function() teleportDropSection:Destroy() end)
-        teleportDropSection = nil
-    end
-
-    local obecni = konfidenciNaSerwerzeLista()
-    teleportDropSection = TeleportTab:Section({
-        Title  = "Konfidenci na serwerze",
-        Icon   = "map-pin",
-        Opened = true,
-    })
-
-    if #obecni == 0 then
-        teleportDropSection:Button({ Title = "Brak konfidentów na serwerze", Icon = "user-x", Locked = true })
-        return
-    end
-
-    local filtered = {}
-    if teleportFilter ~= "" then
-        local szukaj = teleportFilter:lower()
-        for _, g in ipairs(obecni) do
-            if g.Name:lower():find(szukaj, 1, true) then
-                table.insert(filtered, g)
             end
         end
-    else
-        filtered = obecni
-    end
 
-    if #filtered == 0 then
-        teleportDropSection:Button({ Title = "Nie znaleziono: " .. teleportFilter, Icon = "user-x", Locked = true })
-        return
-    end
+        -- Rebuild: Teleport (tylko lista, nie Input)
+        if TeleportTab then
+            if teleportListSection then
+                pcall(function() teleportListSection:Destroy() end)
+                teleportListSection = nil
+            end
+            local obecni = konfidenciNaSerwerzeLista()
+            local filtered = {}
+            if teleportFilter ~= "" then
+                local szukaj = teleportFilter:lower()
+                for _, g in ipairs(obecni) do
+                    if g.Name:lower():find(szukaj, 1, true) then
+                        table.insert(filtered, g)
+                    end
+                end
+            else
+                filtered = obecni
+            end
 
-    for _, gracz in ipairs(filtered) do
-        teleportDropSection:Button({
-            Title    = gracz.Name,
-            Desc     = "Kliknij aby teleportować",
-            Icon     = avatarUrl(gracz.UserId),
-            Justify  = "Between",
-            Callback = function() teleportDo(gracz) end,
-        })
-    end
+            teleportListSection = TeleportTab:Section({
+                Title  = ("Konfidenci na serwerze (%d)"):format(#filtered),
+                Icon   = "map-pin",
+                Opened = true,
+            })
+
+            if #obecni == 0 then
+                teleportListSection:Button({ Title = "Brak konfidentow na serwerze", Icon = "user-x", Locked = true })
+            elseif #filtered == 0 then
+                teleportListSection:Button({ Title = "Nie znaleziono: " .. teleportFilter, Icon = "user-x", Locked = true })
+            else
+                for _, gracz in ipairs(filtered) do
+                    local g = gracz
+                    teleportListSection:Button({
+                        Title    = g.Name,
+                        Desc     = "Kliknij aby teleportowac",
+                        Icon     = "map-pin",
+                        Justify  = "Between",
+                        Callback = function() teleportDo(g) end,
+                    })
+                end
+            end
+        end
+    end)
 end
 
-local function rebuildWszystko()
-    rebuildListaSekcje()
-    rebuildTeleportSekcje()
-end
-
--- ═══════════════════════════════════════════
---  AKTUALIZACJA KONFIG
--- ═══════════════════════════════════════════
+-- ===================================================
+--  AKTUALIZACJA KONFIG (zawsze w osobnym watku)
+-- ===================================================
 
 local function aktualizujListe()
-    local nowaKonfig = pobierzKonfiguracje()
-    if not nowaKonfig then return end
+    task.spawn(function()
+        local nowaKonfig = pobierzKonfiguracje()
+        if not nowaKonfig then return end
 
-    local nowi = {}
-    for _, userId in ipairs(nowaKonfig.konfidenci or {}) do nowi[userId] = true end
-    local starzy = currentConfig.konfidenci or {}
+        local nowi  = {}
+        for _, userId in ipairs(nowaKonfig.konfidenci or {}) do nowi[userId] = true end
+        local starzy = currentConfig.konfidenci or {}
 
-    for userId in pairs(starzy) do
-        if not nowi[userId] then
-            for _, g in ipairs(Players:GetPlayers()) do
-                if g.UserId == userId then usunOznaczenia(g) end
+        for userId in pairs(starzy) do
+            if not nowi[userId] then
+                for _, g in ipairs(Players:GetPlayers()) do
+                    if g.UserId == userId then usunOznaczenia(g) end
+                end
             end
         end
-    end
-    for userId in pairs(nowi) do
-        if not starzy[userId] then
-            for _, g in ipairs(Players:GetPlayers()) do
-                if g.UserId == userId and g.Character then dodajOznaczenia(g) end
+        for userId in pairs(nowi) do
+            if not starzy[userId] then
+                for _, g in ipairs(Players:GetPlayers()) do
+                    if g.UserId == userId and g.Character then dodajOznaczenia(g) end
+                end
             end
         end
-    end
 
-    currentConfig = nowaKonfig
-    currentConfig.konfidenci = nowi
-    currentConfig.ustawienia = currentConfig.ustawienia or {
-        kolorPodswietlenia = {255, 170, 0},
-        przezroczystosc    = 0.4,
-        tekstNadGlowa      = "Konfident",
-    }
+        currentConfig            = nowaKonfig
+        currentConfig.konfidenci = nowi
+        currentConfig.ustawienia = currentConfig.ustawienia or {
+            kolorPodswietlenia = {255, 170, 0},
+            przezroczystosc    = 0.4,
+            tekstNadGlowa      = "Konfident",
+        }
 
-    print(("[KH] ✅ Odświeżono. Konfidenci w bazie: %d"):format(liczbaKonfidentow()))
-    rebuildWszystko()
+        print(("[KH] Odswiezono. Konfidenci w bazie: %d"):format(liczbaKonfidentow()))
+        scheduleRebuild()
+    end)
 end
 
--- ═══════════════════════════════════════════
---  MONITOROWANIE GRACZY
--- ═══════════════════════════════════════════
+-- ===================================================
+--  MONITOROWANIE GRACZY (bez duplikatow)
+-- ===================================================
 
 local function monitorujGracza(gracz)
     if gracz == LocalPlayer then return end
+    if monitorowani[gracz] then return end
+    monitorowani[gracz] = true
 
     gracz.CharacterAdded:Connect(function()
         task.wait(0.3)
-        if czyKonfident(gracz) then
-            dodajOznaczenia(gracz)
-            rebuildWszystko()
-        end
+        if czyKonfident(gracz) then dodajOznaczenia(gracz) end
+        scheduleRebuild()
     end)
 
     gracz.CharacterRemoving:Connect(function()
         usunOznaczenia(gracz)
         if spectateTarget == gracz then stopSpectate() end
-        rebuildWszystko()
+        scheduleRebuild()
     end)
 end
 
--- ═══════════════════════════════════════════
---  AUTO-ODŚWIEŻANIE
--- ═══════════════════════════════════════════
+-- ===================================================
+--  AUTO-ODSWIEZ
+-- ===================================================
 
 local function startAutoRefresh()
     while true do
         task.wait(REFRESH_TIME)
         aktualizujListe()
-        for _, g in ipairs(Players:GetPlayers()) do
-            if g ~= LocalPlayer then
-                local jestKonf = czyKonfident(g)
-                if jestKonf and g.Character then
-                    if pokazOznaczenia and not activeMarkers[g] then dodajOznaczenia(g)
-                    elseif not pokazOznaczenia and activeMarkers[g] then usunOznaczenia(g) end
-                elseif not jestKonf and activeMarkers[g] then
-                    usunOznaczenia(g)
-                end
-            end
-        end
     end
 end
 
--- ═══════════════════════════════════════════
---  WIND UI - TWORZENIE OKNA
--- ═══════════════════════════════════════════
+-- ===================================================
+--  WIND UI - OKNO
+-- ===================================================
 
 local Window = WindUI:CreateWindow({
     Title         = "KonfidentHunter",
@@ -622,18 +504,16 @@ local Window = WindUI:CreateWindow({
     },
 })
 
--- ══════════════════════════════════════════
---  ZAKŁADKA: LISTA
--- ══════════════════════════════════════════
+-- ZAKLADKA: LISTA
 ListaTab = Window:Tab({ Title = "Lista", Icon = "users" })
 
 local AkcjeSekcja = ListaTab:Section({ Title = "Akcje", Icon = "zap", Opened = true })
 
 AkcjeSekcja:Toggle({
-    Title = "Pokaż oznaczenia",
-    Desc  = "Highlight i tekst nad głową konfidentów",
-    Icon  = "eye",
-    Value = true,
+    Title    = "Pokaz oznaczenia",
+    Desc     = "Highlight i tekst nad glowa konfidentow",
+    Icon     = "eye",
+    Value    = true,
     Callback = function(v)
         pokazOznaczenia = v
         odswiezWszystkieOznaczenia()
@@ -643,30 +523,34 @@ AkcjeSekcja:Toggle({
 AkcjeSekcja:Space()
 
 AkcjeSekcja:Button({
-    Title    = "Odśwież listę",
-    Desc     = "Pobiera aktualną listę konfidentów",
+    Title    = "Odswież liste",
+    Desc     = "Pobiera aktualna liste konfidentow",
     Icon     = "refresh-cw",
     Justify  = "Between",
-    Callback = function() task.spawn(aktualizujListe) end,
+    Callback = function() aktualizujListe() end,
 })
 
 ListaTab:Space()
--- konfidenciSection budowana przez rebuildListaSekcje()
 
--- ══════════════════════════════════════════
---  ZAKŁADKA: TELEPORT
--- ══════════════════════════════════════════
+-- ZAKLADKA: TELEPORT
 TeleportTab = Window:Tab({ Title = "Teleport", Icon = "map-pin" })
--- teleportDropSection i teleportInputSection budowane przez rebuildTeleportSekcje()
 
--- ══════════════════════════════════════════
---  ZAKŁADKA: DISCORD
--- ══════════════════════════════════════════
-local DiscordTab = Window:Tab({ Title = "Discord", Icon = "message-circle" })
+-- Sekcja filtrowania - tworzona raz, nigdy nie niszczona
+local teleportInputSection = TeleportTab:Section({ Title = "Szukaj konfidenta", Icon = "search", Opened = true })
+teleportInputSection:Input({
+    Title       = "Wpisz nick",
+    Placeholder = "np. bartos_GTKM",
+    Callback    = function(v)
+        teleportFilter = v or ""
+        scheduleRebuild()
+    end,
+})
 
-local DiscordSekcja = DiscordTab:Section({ Title = "Dołącz do nas", Icon = "link", Opened = true })
+TeleportTab:Space()
 
-local DISCORD_URL = "https://discord.gg/YjTWGZYD"
+-- ZAKLADKA: DISCORD
+local DiscordTab    = Window:Tab({ Title = "Discord", Icon = "message-circle" })
+local DiscordSekcja = DiscordTab:Section({ Title = "Dolacz do nas", Icon = "link", Opened = true })
 
 DiscordSekcja:Button({
     Title    = "Skopiuj link do Discorda",
@@ -675,63 +559,41 @@ DiscordSekcja:Button({
     Justify  = "Between",
     Callback = function()
         local ok = pcall(function() setclipboard(DISCORD_URL) end)
-        if ok then
-            WindUI:Notify({
-                Title    = "Discord",
-                Content  = "Link skopiowany do schowka!",
-                Icon     = "check-circle",
-                Duration = 3,
-            })
-        else
-            WindUI:Notify({
-                Title    = "Discord",
-                Content  = DISCORD_URL,
-                Icon     = "message-circle",
-                Duration = 5,
-            })
-        end
+        WindUI:Notify({
+            Title    = "Discord",
+            Content  = ok and "Link skopiowany do schowka!" or DISCORD_URL,
+            Icon     = ok and "check-circle" or "message-circle",
+            Duration = ok and 3 or 6,
+        })
     end,
 })
 
--- ══════════════════════════════════════════
---  ZAKŁADKA: USTAWIENIA
--- ══════════════════════════════════════════
+-- ZAKLADKA: USTAWIENIA
 local UstawTab = Window:Tab({ Title = "Ustawienia", Icon = "settings" })
 
--- ── Sekcja: Klawisz GUI ──
 local KeybindSekcja = UstawTab:Section({ Title = "Klawisz GUI", Icon = "keyboard", Opened = true })
-
 KeybindSekcja:Keybind({
-    Title    = "Otwórz / zamknij GUI",
-    Desc     = "Naciśnij klawisz, który chcesz przypisać",
+    Title    = "Otworz / zamknij GUI",
+    Desc     = "Nacisnij klawisz, ktory chcesz przypisac",
     Icon     = "command",
     Value    = DOMYSLNY_KLUCZ,
     Callback = function(v)
         if not v or v == "" then return end
         currentKeybind = v
-        -- Ustaw nowy klawisz w WindUI
-        local ok = pcall(function()
-            Window:SetToggleKey(Enum.KeyCode[v])
-        end)
+        local ok = pcall(function() Window:SetToggleKey(Enum.KeyCode[v]) end)
         if ok then
-            WindUI:Notify({
-                Title   = "Keybind",
-                Content = "Klawisz GUI ustawiony na: " .. v,
-                Icon    = "keyboard",
-                Duration = 3,
-            })
+            WindUI:Notify({ Title = "Keybind", Content = "Klawisz GUI: " .. v, Icon = "keyboard", Duration = 3 })
         end
     end,
 })
 
 UstawTab:Space()
 
--- ── Sekcja: Wizualne ──
 local WizualneSekcja = UstawTab:Section({ Title = "Wizualne", Icon = "palette", Opened = true })
 
 WizualneSekcja:Slider({
-    Title    = "Przezroczystość podświetlenia",
-    Desc     = "0 = pełny kolor, 10 = niewidoczny",
+    Title    = "Przezroczystosc podswietlenia",
+    Desc     = "0 = pelny kolor, 10 = niewidoczny",
     Step     = 1,
     Value    = { Min = 0, Max = 10, Default = 4 },
     Callback = function(v)
@@ -747,7 +609,7 @@ WizualneSekcja:Slider({
 WizualneSekcja:Space()
 
 WizualneSekcja:Input({
-    Title       = "Tekst nad głową",
+    Title       = "Tekst nad glowa",
     Placeholder = "Konfident",
     Callback    = function(v)
         if not currentConfig.ustawienia then currentConfig.ustawienia = {} end
@@ -768,134 +630,91 @@ WizualneSekcja:Input({
     end,
 })
 
--- ══════════════════════════════════════════
+-- ===================================================
 --  INICJALIZACJA
--- ══════════════════════════════════════════
+-- ===================================================
 
 local function inicjuj()
-    -- Stwórz GUI alertów
     stworzAlertGui()
 
-    -- Pobierz konfig
-    local config = pobierzKonfiguracje()
-    if config then
-        local slownik = {}
-        for _, userId in ipairs(config.konfidenci or {}) do slownik[userId] = true end
-        currentConfig = config
-        currentConfig.konfidenci = slownik
-        currentConfig.ustawienia = currentConfig.ustawienia or {
-            kolorPodswietlenia = {255, 170, 0},
-            przezroczystosc    = 0.4,
-            tekstNadGlowa      = "Konfident",
-        }
-    else
-        currentConfig = {
-            konfidenci = {},
-            ustawienia = { kolorPodswietlenia = {255, 170, 0}, przezroczystosc = 0.4, tekstNadGlowa = "Konfident" },
-        }
-        warn("[KH] ⚠️ Pusta konfiguracja!")
-    end
-
-    local bazaLiczba = liczbaKonfidentow()
-    print(("[KH] 🟢 Start. Konfidenci w bazie: %d"):format(bazaLiczba))
-
-    -- Oznacz obecnych
-    for _, g in ipairs(Players:GetPlayers()) do
-        if g ~= LocalPlayer and czyKonfident(g) and g.Character then
-            dodajOznaczenia(g)
-        end
-    end
-
-    -- Zbuduj obie zakładki
-    rebuildWszystko()
-
-    -- === ALERT STARTOWY ===
-    local naSerwerze = #konfidenciNaSerwerzeLista()
-    task.delay(1.5, function()
-        if bazaLiczba == 0 then
-            pokazAlert(
-                "KonfidentHunter",
-                "Baza jest pusta. Brak konfidentów.",
-                "🛡",
-                Color3.fromRGB(100, 100, 120)
-            )
-        elseif naSerwerze == 0 then
-            pokazAlert(
-                "KonfidentHunter",
-                ("Załadowano %d konfidentów. Brak na serwerze."):format(bazaLiczba),
-                "🛡",
-                Color3.fromRGB(255, 170, 0)
-            )
+    -- Wszystko w osobnym watku - nie blokuje glownego
+    task.spawn(function()
+        local config = pobierzKonfiguracje()
+        if config then
+            local slownik = {}
+            for _, userId in ipairs(config.konfidenci or {}) do slownik[userId] = true end
+            currentConfig            = config
+            currentConfig.konfidenci = slownik
+            currentConfig.ustawienia = currentConfig.ustawienia or {
+                kolorPodswietlenia = {255, 170, 0},
+                przezroczystosc    = 0.4,
+                tekstNadGlowa      = "Konfident",
+            }
         else
-            pokazAlert(
-                "KonfidentHunter",
-                ("⚠ %d konfident(ów) NA SERWERZE!"):format(naSerwerze),
-                "🚨",
-                Color3.fromRGB(255, 60, 60)
-            )
-        end
-    end)
-
-    -- WindUI notif
-    WindUI:Notify({
-        Title    = "KonfidentHunter",
-        Content  = ("Baza: %d ID | Naciśnij %s"):format(bazaLiczba, currentKeybind),
-        Icon     = "shield-alert",
-        Duration = 5,
-    })
-
-    -- Monitorowanie aktualnych
-    for _, g in ipairs(Players:GetPlayers()) do
-        if g ~= LocalPlayer then monitorujGracza(g) end
-    end
-
-    -- Nowi gracze
-    Players.PlayerAdded:Connect(function(gracz)
-        if gracz == LocalPlayer then return end
-        monitorujGracza(gracz)
-
-        -- Czekaj aż gracz załaduje dane
-        task.wait(0.5)
-
-        if czyKonfident(gracz) then
-            -- === ALERT: KONFIDENT WBIŁ ===
-            pokazAlert(
-                "⚠  Konfident na serwerze!",
-                ("\"" .. gracz.Name .. "\" wbił na serwer!"),
-                "🚨",
-                Color3.fromRGB(255, 60, 60)
-            )
-            WindUI:Notify({
-                Title   = "Konfident wbił!",
-                Content = gracz.Name .. " jest na serwerze!",
-                Icon    = "alert-triangle",
-                Duration = 6,
-            })
-            if gracz.Character then dodajOznaczenia(gracz) end
+            currentConfig = {
+                konfidenci = {},
+                ustawienia = { kolorPodswietlenia = {255, 170, 0}, przezroczystosc = 0.4, tekstNadGlowa = "Konfident" },
+            }
+            warn("[KH] Pusta konfiguracja!")
         end
 
-        task.wait(0.1)
-        rebuildWszystko()
-    end)
+        local bazaLiczba = liczbaKonfidentow()
+        print(("[KH] Start. Konfidenci w bazie: %d"):format(bazaLiczba))
 
-    -- Gracze opuszczający
-    Players.PlayerRemoving:Connect(function(gracz)
-        task.wait(0.15)
-        if spectateTarget == gracz then stopSpectate() end
-
-        if czyKonfident(gracz) then
-            pokazAlert(
-                "Konfident opuścił serwer",
-                ("\"" .. gracz.Name .. "\" wyszedł."),
-                "🛡",
-                Color3.fromRGB(100, 180, 100)
-            )
+        for _, g in ipairs(Players:GetPlayers()) do
+            if g ~= LocalPlayer and czyKonfident(g) and g.Character then
+                dodajOznaczenia(g)
+            end
         end
 
-        rebuildWszystko()
-    end)
+        scheduleRebuild()
 
-    task.spawn(startAutoRefresh)
+        task.delay(1.5, function()
+            local naSerwerze = #konfidenciNaSerwerzeLista()
+            if bazaLiczba == 0 then
+                pokazAlert("KonfidentHunter", "Baza jest pusta. Brak konfidentow.", "!", Color3.fromRGB(100, 100, 120))
+            elseif naSerwerze == 0 then
+                pokazAlert("KonfidentHunter", ("Zaladowano %d konfidentow. Brak na serwerze."):format(bazaLiczba), "!", Color3.fromRGB(255, 170, 0))
+            else
+                pokazAlert("KonfidentHunter", ("! %d konfident(ow) NA SERWERZE!"):format(naSerwerze), "!", Color3.fromRGB(255, 60, 60))
+            end
+        end)
+
+        WindUI:Notify({
+            Title    = "KonfidentHunter",
+            Content  = ("Baza: %d ID | Nacisnij %s"):format(bazaLiczba, currentKeybind),
+            Icon     = "shield-alert",
+            Duration = 5,
+        })
+
+        for _, g in ipairs(Players:GetPlayers()) do
+            monitorujGracza(g)
+        end
+
+        Players.PlayerAdded:Connect(function(gracz)
+            if gracz == LocalPlayer then return end
+            monitorujGracza(gracz)
+            task.wait(0.5)
+            if czyKonfident(gracz) then
+                pokazAlert("Konfident na serwerze!", gracz.Name .. " wbil na serwer!", "!", Color3.fromRGB(255, 60, 60))
+                WindUI:Notify({ Title = "Konfident wbil!", Content = gracz.Name .. " jest na serwerze!", Icon = "alert-triangle", Duration = 6 })
+                if gracz.Character then dodajOznaczenia(gracz) end
+            end
+            scheduleRebuild()
+        end)
+
+        Players.PlayerRemoving:Connect(function(gracz)
+            task.wait(0.15)
+            monitorowani[gracz] = nil
+            if spectateTarget == gracz then stopSpectate() end
+            if czyKonfident(gracz) then
+                pokazAlert("Konfident opuscil serwer", gracz.Name .. " wyszedl.", "!", Color3.fromRGB(100, 180, 100))
+            end
+            scheduleRebuild()
+        end)
+
+        task.spawn(startAutoRefresh)
+    end)
 end
 
 inicjuj()
