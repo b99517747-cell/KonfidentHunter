@@ -453,7 +453,6 @@ end
 
 -- ===================================================
 --  WIND UI — OKNO
---  User = avatar + nick LocalPlayer w lewym dolnym rogu
 -- ===================================================
 
 local myNick = LocalPlayer.Name
@@ -468,11 +467,6 @@ local Window = WindUI:CreateWindow({
     HideSearchBar = true,
     ToggleKey     = Enum.KeyCode[DOMYSLNY_KLUCZ],
     Topbar        = { Height = 44, ButtonsType = "Mac" },
-    -- Avatar + nick w lewym dolnym rogu paska bocznego
-    User          = {
-        Name   = myNick,
-        Avatar = myId,  -- WindUI pobiera avatar po UserId (omija bug z URL)
-    },
 })
 
 -- ===================================================
@@ -491,7 +485,7 @@ MainTab:Image({
 MainTab:Space()
 
 -- SEKCJA: Statystyki (tworzona raz, nigdy nie niszczona)
-local StatSekcja = MainTab:Section({ Title = "Statystyki", Icon = "bar-chart-2", Opened = true })
+local StatSekcja = MainTab:Section({ Title = "📊 Statystyki", Icon = "bar-chart-2", Opened = true })
 
 statBazaEl = StatSekcja:Paragraph({
     Title = "Kont w bazie konfidentów: 0",
