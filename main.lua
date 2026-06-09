@@ -79,10 +79,6 @@ local teleportFilter  = ""
 local konfidenciSection   = nil
 local teleportListSection = nil
 
--- Hash do wykrywania zmian
-local lastListaHash    = ""
-local lastTeleportHash = ""
-
 -- Rebuild throttle
 local rebuildQueued = false
 
@@ -327,16 +323,13 @@ end
 -- ===================================================
 
 local function rebuildLista()
-    local obecni  = konfidenciNaSerwerzeLista()
-    local newHash = hashLista(obecni)
-    if newHash == lastListaHash then return end
-    lastListaHash = newHash
     if not ListaTab then return end
     pcall(function()
         if konfidenciSection then
             pcall(function() konfidenciSection:Destroy() end)
             konfidenciSection = nil
         end
+        local obecni = konfidenciNaSerwerzeLista()
         konfidenciSection = ListaTab:Section({
             Title  = ("Konfidenci na serwerze (%d)"):format(#obecni),
             Icon   = "users",
@@ -348,7 +341,6 @@ local function rebuildLista()
             for _, g in ipairs(obecni) do
                 local gracz   = g
                 local isSpect = (spectateTarget == gracz)
-                local thumb   = thumbCache[gracz.UserId] or ""
                 konfidenciSection:Button({
                     Title    = gracz.Name,
                     Desc     = "ID: " .. tostring(gracz.UserId) .. (isSpect and " • Obserwujesz" or ""),
@@ -357,7 +349,7 @@ local function rebuildLista()
                     Callback = function()
                         if spectateTarget == gracz then stopSpectate()
                         else if spectateTarget then stopSpectate() end; spectateGracza(gracz) end
-                        lastListaHash = ""; rebuildLista()
+                        rebuildLista()
                     end,
                 })
             end
@@ -366,20 +358,19 @@ local function rebuildLista()
 end
 
 local function rebuildTeleport()
-    local obecni   = konfidenciNaSerwerzeLista()
-    local filtered = {}
-    if teleportFilter ~= "" then
-        local sz = teleportFilter:lower()
-        for _, g in ipairs(obecni) do if g.Name:lower():find(sz,1,true) then table.insert(filtered,g) end end
-    else filtered = obecni end
-    local newHash = hashLista(filtered).."|f:"..teleportFilter
-    if newHash == lastTeleportHash then return end
-    lastTeleportHash = newHash
     if not TeleportTab then return end
     pcall(function()
         if teleportListSection then
             pcall(function() teleportListSection:Destroy() end)
             teleportListSection = nil
+        end
+        local obecni   = konfidenciNaSerwerzeLista()
+        local filtered = {}
+        if teleportFilter ~= "" then
+            local sz = teleportFilter:lower()
+            for _, g in ipairs(obecni) do if g.Name:lower():find(sz,1,true) then table.insert(filtered,g) end end
+        else
+            filtered = obecni
         end
         teleportListSection = TeleportTab:Section({
             Title  = ("Wyniki (%d)"):format(#filtered),
@@ -393,7 +384,6 @@ local function rebuildTeleport()
         else
             for _, g in ipairs(filtered) do
                 local gracz = g
-                local thumb = thumbCache[gracz.UserId] or ""
                 teleportListSection:Button({
                     Title    = gracz.Name,
                     Desc     = "ID: " .. tostring(gracz.UserId),
@@ -443,7 +433,7 @@ local function syncBazy()
         currentConfig = cfg
         currentConfig.konfidenci = nowi
         currentConfig.ustawienia = currentConfig.ustawienia or { kolorPodswietlenia={255,170,0}, przezroczystosc=0.4, tekstNadGlowa="Konfident" }
-        lastListaHash = ""; lastTeleportHash = ""
+         
         print(("[KH] Sync bazy. Kont: %d"):format(liczbaKonfidentow()))
         scheduleRebuild()
     end)
@@ -460,13 +450,13 @@ local function monitorujGracza(gracz)
     gracz.CharacterAdded:Connect(function()
         task.wait(0.3)
         if czyKonfident(gracz) then dodajOznaczenia(gracz) end
-        lastListaHash = ""; lastTeleportHash = ""
+         
         scheduleRebuild()
     end)
     gracz.CharacterRemoving:Connect(function()
         usunOznaczenia(gracz)
         if spectateTarget == gracz then stopSpectate() end
-        lastListaHash = ""; lastTeleportHash = ""
+         
         scheduleRebuild()
     end)
 end
@@ -607,7 +597,7 @@ AkcjeSekcja:Button({
     Desc     = "Wymusza sync z bazą",
     Icon     = "refresh-cw",
     Justify  = "Between",
-    Callback = function() lastListaHash = ""; lastTeleportHash = ""; syncBazy() end,
+    Callback = function()   syncBazy() end,
 })
 ListaTab:Space()
 
@@ -620,7 +610,7 @@ TeleportTab:Section({ Title = "Szukaj", Icon = "search", Opened = true }):Input(
     Title       = "Nick konfidenta",
     Placeholder = "np. bartos_GTKM",
     Callback    = function(v)
-        teleportFilter = v or ""; lastTeleportHash = ""
+        teleportFilter = v or ""
         task.spawn(rebuildTeleport)
     end,
 })
@@ -728,7 +718,7 @@ local function inicjuj()
             if czyKonfident(g) and g.Character then dodajOznaczenia(g) end
         end
 
-        lastListaHash = ""; lastTeleportHash = ""
+         
         scheduleRebuild()
 
         -- Powiadomienia z opóźnieniami
@@ -765,7 +755,7 @@ local function inicjuj()
                 end)
                 if gracz.Character then dodajOznaczenia(gracz) end
             end
-            lastListaHash = ""; lastTeleportHash = ""
+             
             scheduleRebuild()
         end)
 
@@ -780,7 +770,7 @@ local function inicjuj()
                 pokazAlert("Konfident opuścił serwer", gracz.Name.." wyszedł.", Color3.fromRGB(100,180,100))
             end
             -- Wymuś rebuild z nową listą
-            lastListaHash = ""; lastTeleportHash = ""
+             
             scheduleRebuild()
         end)
 
