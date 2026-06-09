@@ -1,3 +1,10 @@
+-- ===== GUARD: zapobiega powielaniu GUI =====
+if _G.KonfidentHunter then
+    pcall(function() _G.KonfidentHunter:Destroy() end)
+    _G.KonfidentHunter = nil
+end
+-- ============================================
+
 -- ===== KONFIGURACJA =====
 local REFRESH_TIME   = 60
 local CONFIG_URL     = "https://raw.githubusercontent.com/b99517747-cell/KonfidentHunter/main/config.lua"
@@ -468,6 +475,7 @@ local Window = WindUI:CreateWindow({
     ToggleKey     = Enum.KeyCode[DOMYSLNY_KLUCZ],
     Topbar        = { Height = 44, ButtonsType = "Mac" },
 })
+_G.KonfidentHunter = Window  -- rejestruj instancję do późniejszego niszczenia
 
 -- ===================================================
 --  ZAKŁADKA: MAIN
@@ -485,7 +493,7 @@ MainTab:Image({
 MainTab:Space()
 
 -- SEKCJA: Statystyki (tworzona raz, nigdy nie niszczona)
-local StatSekcja = MainTab:Section({ Title = "Statystyki", Icon = "server", Opened = true })
+local StatSekcja = MainTab:Section({ Title = "Statystyki", Icon = "chart-no-axes-combined", Opened = true })
 
 statBazaEl = StatSekcja:Paragraph({
     Title = "Kont w bazie konfidentów: 0",
