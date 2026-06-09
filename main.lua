@@ -580,13 +580,13 @@ AkcjeSekcja:Toggle({
     Value    = true,
     Callback = function(v) pokazOznaczenia = v; odswiezWszystkieOznaczenia() end,
 })
-AkcjeSekcja:Space()
-AkcjeSekcja:Button({
+ListaTab:Space()
+ListaTab:Button({
     Title    = "Odśwież listę",
     Desc     = "Wymusza sync z bazą",
     Icon     = "refresh-cw",
     Justify  = "Between",
-    Callback = function()   syncBazy() end,
+    Callback = function() syncBazy() end,
 })
 ListaTab:Space()
 
